@@ -1,0 +1,30 @@
+{
+  "name": "linux-system-hud",
+  "productName": "linux-system-hud",
+  "version": "1.0.0",
+  "description": "Linux system and desktop heads up display controls",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "repository": "https://github.com/phil-giambra/linux-system-hud",
+  "keywords": [
+    "linux",
+    "xorg",
+    "desktop",
+    "xserver",
+    "system",
+    "utility"
+  ],
+  "bin": {
+    "lshud": "./lshud_cli.js"
+  },
+  "author": "Phil Giambra",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^11.1.1"
+  },
+  "dependencies": {
+    
+  }
+}

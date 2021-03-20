@@ -1,2 +1,2 @@
 # linux-system-hud
-Linux system and desktop head up display controls
+Linux system and desktop heads up display controls
