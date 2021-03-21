@@ -10,7 +10,7 @@ const gotTheLock = app.requestSingleInstanceLock()
 const user = process.env.USER
 const os_platform = process.platform
 let app_data_path
-
+let hudClock = null
 let config = {
 
 
@@ -107,9 +107,13 @@ app.whenReady().then(() => {
         console.log("is isVisible",hudClock.isVisible())
         console.log("isFocused",hudClock.isFocused())
         if (hudClock.isVisible()) {
-            hudClock.hide()
+            //hudClock.hide()
+            wincmd.stopRealTimeData()
         } else {
-            hudClock.show()
+
+            wincmd.startRealTimeData()
+            //hudClock.show()
+
         }
 
     })
@@ -117,7 +121,7 @@ app.whenReady().then(() => {
     const ret2 = globalShortcut.register('Super+Tab', () => {
         console.log('super Tab is pressed')
         if (hudClock.isVisible()) {
-            hudClock.hide()
+            wincmd.stopRealTimeData()
         }
         wincmd.raiseWindow(wincmd.list[wincmd.pos].id)
         wincmd.pos += 1
@@ -167,15 +171,16 @@ function checkOkToQuit() {
 }
 
 //-----------------------------HUD CLOCK------------------------------------------
-let hudClock
+
 
 function createHudClock () {
+    console.log("createHudClock", wincmd.screen);
     // Create the browser window.
     hudClock = new BrowserWindow({
         x:0,
         y:0,
-        width: 1024,
-        height: 768,
+        width: wincmd.screen.w,
+        height: wincmd.screen.h,
         //transparent:true,
         frame:false,
         //resizable:false,
@@ -189,7 +194,8 @@ function createHudClock () {
     // and load the index.html of the app.
     hudClock.loadFile( path.join(__dirname,'huds/hud_clock.html') )
     // Open the DevTools.
-    //hudClock.webContents.openDevTools()
+    hudClock.webContents.openDevTools()
+    wincmd.startRealTimeData()
 }
 
 
@@ -215,12 +221,48 @@ ipcMain.on("hud_clock_window", (event, data) => {
 
 })
 
-let wincmd = {
+let wincmd = {}
+wincmd.loop = null
+wincmd.startRealTimeData = function() {
+    hudClock.webContents.send("from_mainProcess", { type:"start_realtime_data" } )
+    if (wincmd.loop === null){
+        wincmd.loop = setInterval(function(){
+            wincmd.getScreenImage()
+            wincmd.getWindows()
+        },1000)
+    }
+    hudClock.show()
+}
+wincmd.stopRealTimeData = function() {
 
+    hudClock.webContents.send("from_mainProcess", { type:"stop_realtime_data" } )
+    if (wincmd.loop !== null) {
+        clearInterval(wincmd.loop)
+        wincmd.loop = null
+    }
+
+    hudClock.hide()
+}
+
+wincmd.bg_id = 0
+wincmd.getScreenImage = function(){
+    let snap = spawn("import", ["-window",wincmd.list[wincmd.pos].id, "huds/assets/bg.jpg"])
+       snap.stdout.on('data', (data) => { databuf += data });
+       snap.stderr.on('data', (data) => { console.log("stderr",data.toString());});
+       snap.on('exit', (code) => {
+         console.log(`snap exited with code ${code}`);
+
+         //hudClock.webContents.send("from_mainProcess", {type:"background_reload", id:wincmd.bg_id} )
+         wincmd.bg_id++
+
+     })
 
 }
 wincmd.list = []
 wincmd.pos = 0
+
+
+
 wincmd.raiseWindow = function(id) {
     let databuf = ""
     let raise = spawn("xdo", ["raise", id ])
@@ -256,10 +298,12 @@ wincmd.getScreenSize = function(){
              s[i] = s[i][0].trim().split("x")
          });
          console.log("wincmd.getScreenSize",s[0]);
-         //return s[0]
+         wincmd.screen = { w:parseInt(s[0][0]), h:parseInt(s[0][1]) }
+
      })
 }
 wincmd.getWindows = function(){
+    console.log("wincmd.getWindows");
     let databuf = ""
     let scan = spawn("xwininfo", ["-tree","-root" ])
        scan.stdout.on('data', (data) => { databuf += data });
@@ -286,7 +330,7 @@ wincmd.getWindows = function(){
                  }
              }
          });
-         console.log(wins);
+         //console.log(wins);
          let winlist = []
          wins.forEach((item, i) => {
              if (item[1] !== item[3] && item[1] !== item[5]){
@@ -299,13 +343,18 @@ wincmd.getWindows = function(){
 
          });
          wincmd.list = winlist
-         console.log(winlist);
+         //console.log(winlist);
+         if (wincmd.loop !== null){
+             // send to client
+             hudClock.webContents.send("from_mainProcess", {type:"window_list", list:wincmd.list} )
+         }
 
 
-         //return databuf
      })
 }
 
-setTimeout(wincmd.getWindows,2000)
+wincmd.getScreenSize()
+wincmd.getWindows()
+//wincmd.getScreenImage()
 //console.log(wincmd.getScreenSize());
 //console.log(wincmd.getWindows());

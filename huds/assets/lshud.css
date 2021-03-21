@@ -1,1 +1,13 @@
-body { background: none;}
+
+#wrapper{
+    position: fixed; top: 0px; left:0px; height:100%; width: 100%;
+    overflow: hidden; background:none;
+}
+#bg_img {
+    position: absolute; top: 0px; left:0px; height:100%; width: 100%;
+    z-index: 1;
+}
+.window_btns_cont {
+    position: absolute; bottom: 20px; right:20px; background: rgba(0,0,0,.5);
+    color:white; z-index: 10;
+}
