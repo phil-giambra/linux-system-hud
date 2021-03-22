@@ -4,6 +4,8 @@ const fs = require('fs')
 const path = require('path')
 let args = process.argv
 
+const actl = require('./lib/audioctl.js')
+
 let cloneObj = function(obj){ return JSON.parse(JSON.stringify(obj))}
 
 const gotTheLock = app.requestSingleInstanceLock()
@@ -265,3 +267,4 @@ wincmd.getScreenSize = function(){
 
 
 wincmd.getScreenSize();
+console.log(actl.getRandomColor());
