@@ -107,12 +107,12 @@ app.whenReady().then(() => {
         console.log("is isVisible",hudClock.isVisible())
         console.log("isFocused",hudClock.isFocused())
         if (realtime === true) {
-            //hudClock.hide()
+
             wincmd.stopRealTimeData()
         } else {
 
             wincmd.startRealTimeData()
-            //hudClock.show()
+
 
         }
 
@@ -120,12 +120,7 @@ app.whenReady().then(() => {
 
     const ret2 = globalShortcut.register('Super+Tab', () => {
         console.log('super Tab is pressed')
-        if (realtime === true) {
-            wincmd.stopRealTimeData()
-        }
-        wincmd.raiseWindow(wincmd.list[wincmd.pos].id)
-        wincmd.pos += 1
-        if (wincmd.pos > wincmd.list.length - 1){ wincmd.pos = 0 }
+
 
     })
 
@@ -218,29 +213,21 @@ ipcMain.on("hud_clock_window", (event, data) => {
         }
 
     }
-    if (data.type === "window_list_button"){
-        wincmd.stopRealTimeData()
-        wincmd.raiseWindow(data.id)
-
-    }
 
 })
 let realtime = true
 let wincmd = {}
-let selfid = ""
 wincmd.loop = null
 wincmd.startRealTimeData = function() {
     realtime = true
     hudClock.webContents.send("from_mainProcess", { type:"start_realtime_data" } )
     if (wincmd.loop === null){
         wincmd.loop = setInterval(function(){
-            //wincmd.getScreenImage()
-            wincmd.getWindows()
+            //do somthing
         },1000)
     }
-    //hudClock.show()
-    hudClock.setPosition( 0 , 0)
-    wincmd.raiseWindow(selfid)
+    hudClock.show()
+
 
 }
 wincmd.stopRealTimeData = function() {
@@ -251,50 +238,10 @@ wincmd.stopRealTimeData = function() {
         wincmd.loop = null
     }
 
-    //hudClock.hide()
-    hudClock.setPosition( -200 - wincmd.screen.w, 0)
-    wincmd.raiseWindow(wincmd.list[wincmd.pos].id)
-}
-
-wincmd.bg_id = 0
-wincmd.getScreenImage = function(){
-    console.log("getScreenImage",wincmd.list[wincmd.pos].id);
-    let snap = spawn("import", ["-window",wincmd.list[wincmd.pos].id, "huds/assets/bg.jpg"])
-       snap.stdout.on('data', (data) => { databuf += data });
-       snap.stderr.on('data', (data) => { console.log("stderr",data.toString());});
-       snap.on('exit', (code) => {
-         console.log(`snap exited with code ${code}`);
-
-         //hudClock.webContents.send("from_mainProcess", {type:"background_reload", id:wincmd.bg_id} )
-         wincmd.bg_id++
-
-     })
+    hudClock.hide()
 
 }
-wincmd.list = []
-wincmd.pos = 0
 
-
-
-wincmd.raiseWindow = function(id) {
-    let databuf = ""
-    let raise = spawn("xdo", ["raise", id ])
-       raise.stdout.on('data', (data) => { databuf += data });
-       raise.stderr.on('data', (data) => { console.log("stderr",data.toString());});
-       raise.on('exit', (code) => {
-         console.log(`raise exited with code ${code}`);
-
-
-     })
-     let activate = spawn("xdo", ["activate", id ])
-        activate.stdout.on('data', (data) => { databuf += data });
-        activate.stderr.on('data', (data) => { console.log("stderr",data.toString());});
-        activate.on('exit', (code) => {
-          console.log(`activate exited with code ${code}`);
-          console.log("wincmd.raiseWindow",id, databuf);
-
-      })
-}
 
 
 wincmd.getScreenSize = function(){
@@ -315,63 +262,6 @@ wincmd.getScreenSize = function(){
 
      })
 }
-wincmd.getWindows = function(){
-    console.log("wincmd.getWindows");
-    let databuf = ""
-    let scan = spawn("xwininfo", ["-tree","-root" ])
-       scan.stdout.on('data', (data) => { databuf += data });
-       scan.stderr.on('data', (data) => { console.log("stderr",data.toString());});
-       scan.on('exit', (code) => {
-         console.log(`scan exited with code ${code}`);
-
-         let wins = []
-         let lines = databuf.split("\n")
-         lines.forEach((item, i) => {
-             if (i > 5) {
-                 if (!item.includes("(has no name)")){
-                     if (!item.includes("10x10+10+10") && !item.includes("16x16+0+0")){
-                         if (!item.includes("children:")){
-                             if (!item.includes("child:")){
-                                 if (!item.includes("+-")){
-                                     if (item != ""){
-                                         wins.push(item.trim().split('"'))
-                                     }
-                                 }
-                             }
-                         }
-                     }
-                 }
-             }
-         });
-         //console.log(wins);
-         let winlist = []
-         let winids = []
-         wins.forEach((item, i) => {
-             if (item[1] === "linux-system-hud_self") {selfid = item[0].trim()}
-             if ( item[1] !== item[3] && item[1] !== item[5] && item[1] !== "linux-system-hud_self"){
-                 winids.push(item[0].trim())
-                 winlist.push({
-                     id:item[0].trim(),
-                     name:item[1],
-                     class: item[3],
-                     geo: item[6].split(" ")[2]
-                 })
-             }
-
-         });
-         wincmd.list = winlist
-         //console.log(winlist);
-         if (wincmd.loop !== null){
-             // send to client
-             hudClock.webContents.send("from_mainProcess", {type:"window_list", list:wincmd.list ,ids:winids} )
-         }
 
 
-     })
-}
-
-wincmd.getScreenSize()
-wincmd.getWindows()
-//wincmd.getScreenImage()
-//console.log(wincmd.getScreenSize());
-//console.log(wincmd.getWindows());
+wincmd.getScreenSize();
