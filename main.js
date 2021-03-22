@@ -106,7 +106,7 @@ app.whenReady().then(() => {
         console.log('super is pressed')
         console.log("is isVisible",hudClock.isVisible())
         console.log("isFocused",hudClock.isFocused())
-        if (hudClock.isVisible()) {
+        if (realtime === true) {
             //hudClock.hide()
             wincmd.stopRealTimeData()
         } else {
@@ -120,7 +120,7 @@ app.whenReady().then(() => {
 
     const ret2 = globalShortcut.register('Super+Tab', () => {
         console.log('super Tab is pressed')
-        if (hudClock.isVisible()) {
+        if (realtime === true) {
             wincmd.stopRealTimeData()
         }
         wincmd.raiseWindow(wincmd.list[wincmd.pos].id)
@@ -157,7 +157,7 @@ function handleAnotherInstance(event, commandLine, workingDirectory) {
 
     else {
         //*** if there are any open windows focus them
-        hudClock.show()
+        //hudClock.show()
     }
 
 
@@ -205,10 +205,10 @@ ipcMain.on("hud_clock_window", (event, data) => {
     if (data.type === "window_button") {
         //hudClock.
         if (data.button === "win_minimize"){
-            hudClock.hide()
+            wincmd.stopRealTimeData()
         }
         if (data.button === "win_maximize"){
-            hudClock.show()
+            //hudClock.show()
         }
         if (data.button === "win_close"){
             hudClock.close()
@@ -218,34 +218,47 @@ ipcMain.on("hud_clock_window", (event, data) => {
         }
 
     }
+    if (data.type === "window_list_button"){
+        wincmd.stopRealTimeData()
+        wincmd.raiseWindow(data.id)
+
+    }
 
 })
-
+let realtime = true
 let wincmd = {}
+let selfid = ""
 wincmd.loop = null
 wincmd.startRealTimeData = function() {
+    realtime = true
     hudClock.webContents.send("from_mainProcess", { type:"start_realtime_data" } )
     if (wincmd.loop === null){
         wincmd.loop = setInterval(function(){
-            wincmd.getScreenImage()
+            //wincmd.getScreenImage()
             wincmd.getWindows()
         },1000)
     }
-    hudClock.show()
+    //hudClock.show()
+    hudClock.setPosition( 0 , 0)
+    wincmd.raiseWindow(selfid)
+
 }
 wincmd.stopRealTimeData = function() {
-
+    realtime = false
     hudClock.webContents.send("from_mainProcess", { type:"stop_realtime_data" } )
     if (wincmd.loop !== null) {
         clearInterval(wincmd.loop)
         wincmd.loop = null
     }
 
-    hudClock.hide()
+    //hudClock.hide()
+    hudClock.setPosition( -200 - wincmd.screen.w, 0)
+    wincmd.raiseWindow(wincmd.list[wincmd.pos].id)
 }
 
 wincmd.bg_id = 0
 wincmd.getScreenImage = function(){
+    console.log("getScreenImage",wincmd.list[wincmd.pos].id);
     let snap = spawn("import", ["-window",wincmd.list[wincmd.pos].id, "huds/assets/bg.jpg"])
        snap.stdout.on('data', (data) => { databuf += data });
        snap.stderr.on('data', (data) => { console.log("stderr",data.toString());});
@@ -332,11 +345,15 @@ wincmd.getWindows = function(){
          });
          //console.log(wins);
          let winlist = []
+         let winids = []
          wins.forEach((item, i) => {
-             if (item[1] !== item[3] && item[1] !== item[5]){
+             if (item[1] === "linux-system-hud_self") {selfid = item[0].trim()}
+             if ( item[1] !== item[3] && item[1] !== item[5] && item[1] !== "linux-system-hud_self"){
+                 winids.push(item[0].trim())
                  winlist.push({
                      id:item[0].trim(),
                      name:item[1],
+                     class: item[3],
                      geo: item[6].split(" ")[2]
                  })
              }
@@ -346,7 +363,7 @@ wincmd.getWindows = function(){
          //console.log(winlist);
          if (wincmd.loop !== null){
              // send to client
-             hudClock.webContents.send("from_mainProcess", {type:"window_list", list:wincmd.list} )
+             hudClock.webContents.send("from_mainProcess", {type:"window_list", list:wincmd.list ,ids:winids} )
          }
 
 
