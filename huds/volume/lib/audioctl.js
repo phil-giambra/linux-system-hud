@@ -113,7 +113,7 @@ exports.msg = mEmitter;
 
 //  mEmitter.emit("auth", packet)
 
-console.log("Audio control local module has been initiated");
+console.log("Audio control module has been initiated");
 
 //setVolume(50)
 //getVolume()

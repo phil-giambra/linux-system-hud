@@ -1,5 +1,7 @@
 const ipc = require('electron').ipcRenderer;
 
+window.hudid = "volume"
+
 window.actl = require('./lib/audioctl.js')
 
 console.log("pre-load : " , __dirname);
@@ -19,13 +21,13 @@ ipc.on('from_mainProcess', (event, data) => {
 //-------------- audio control messages-----------------------------------------
 actl.msg.on("volume_update", function(vol){
     handleVolumeUpdate(vol)
-    lsh.send("data_update", { type:"volume_update", data:vol , hudid:"volume"} )
+    lsh.send("data_update", { type:"volume_update", data:vol , hudid:hudid} )
 
 })
 
 actl.msg.on("volume_error", function(err){
-
-    lsh.send("data_update", { type:"volume_error", data:err, hudid:"volume"} )
+    handleVolumeError(data)
+    lsh.send("data_update", { type:"volume_error", data:err, hudid:hudid} )
 })
 
 window.onload = function() {

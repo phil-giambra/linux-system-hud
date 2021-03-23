@@ -18,7 +18,10 @@ function handleFromMainProcess(data){
         STATE.realtime = false
 
     }
-    
+    if (data.type === "volume_change"){
+        console.log("volume_change");
+        actl.setVolume(data.value)
+    }
 
 
 }
@@ -43,7 +46,9 @@ function handleVolumeUpdate(data) {
     volume_numeric_display.textContent = data.level
     volume_level_display.style.height = (data.level * 2) + "px"
 }
-
+function handleVolumeError(data) {
+    console.log(data);
+}
 
 
 //-----------------------window buttons----------------------------------------
