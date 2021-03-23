@@ -10,5 +10,8 @@ window.lshapi.send = function (channel,data) {
 
 
 ipc.on('from_mainProcess', (event, data) => {
-    handleFromMainProcess(data)
+    if (handleFromMainProcess){
+        handleFromMainProcess(data)
+    }
+
 })

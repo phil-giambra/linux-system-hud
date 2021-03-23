@@ -3,6 +3,7 @@ let bg_img = document.getElementById("bg_img")
 let bg_img_id = 0
 let volume_change = document.getElementById("volume_change")
 let volume_numeric_display = document.getElementById("volume_numeric_display")
+let volume_level_display = document.getElementById("volume_level_display")
 
 volume_change.addEventListener("wheel",handleVolumeChange)
 
@@ -20,6 +21,7 @@ function handleFromMainProcess(data){
     }
     if (data.type === "volume_update"){
         console.log("volume_update",data);
+        handleVolumeUpdate(data.data)
     }
 
 
@@ -57,4 +59,10 @@ function handleVolumeChange(event) {
     lshapi.send("hud_clock_window", { type:"volume_change", value:updown } )
 
 
+}
+
+
+function handleVolumeUpdate(data) {
+    volume_numeric_display.textContent = data.level
+    volume_level_display.style.height = (data.level * 2) + "px"
 }

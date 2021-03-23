@@ -5,6 +5,7 @@ const path = require('path')
 let args = process.argv
 
 const actl = require('./lib/audioctl.js')
+const launch = require('./lib/launcher.js')
 
 let cloneObj = function(obj){ return JSON.parse(JSON.stringify(obj))}
 
@@ -221,6 +222,8 @@ ipcMain.on("hud_clock_window", (event, data) => {
 
 })
 
+
+//-------------- audio control messages-----------------------------------------
 actl.msg.on("vol", function(vol){
     if (hudClock !== null){
         hudClock.webContents.send("from_mainProcess", { type:"volume_update", data:vol } )
@@ -228,6 +231,8 @@ actl.msg.on("vol", function(vol){
 
 })
 
+
+//-----------realtime data loop-----------------------------------------------
 let realtime = true
 let wincmd = {}
 wincmd.loop = null
@@ -244,6 +249,7 @@ wincmd.startRealTimeData = function() {
 
 
 }
+
 wincmd.stopRealTimeData = function() {
     realtime = false
     hudClock.webContents.send("from_mainProcess", { type:"stop_realtime_data" } )
