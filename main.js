@@ -215,13 +215,25 @@ ipcMain.on("hud_clock_window", (event, data) => {
         }
 
     }
+    if (data.type === "volume_change") {
+        actl.setVolume(data.value)
+    }
 
 })
+
+actl.msg.on("vol", function(vol){
+    if (hudClock !== null){
+        hudClock.webContents.send("from_mainProcess", { type:"volume_update", data:vol } )
+    }
+
+})
+
 let realtime = true
 let wincmd = {}
 wincmd.loop = null
 wincmd.startRealTimeData = function() {
     realtime = true
+    actl.getVolume()
     hudClock.webContents.send("from_mainProcess", { type:"start_realtime_data" } )
     if (wincmd.loop === null){
         wincmd.loop = setInterval(function(){
@@ -267,4 +279,4 @@ wincmd.getScreenSize = function(){
 
 
 wincmd.getScreenSize();
-console.log(actl.getRandomColor());
+//console.log(actl.getVolume());
