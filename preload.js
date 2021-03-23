@@ -1,17 +1,14 @@
 const ipc = require('electron').ipcRenderer;
 
-console.log("pre-load : " , "test");
+console.log("pre-load : " , __dirname);
 
-window.lshapi = {}
+window.lsh = {}
 // ipc to the main process
-window.lshapi.send = function (channel,data) {
+window.lsh.send = function (channel,data) {
     ipc.send(channel, data)
 }
 
 
 ipc.on('from_mainProcess', (event, data) => {
-    if (handleFromMainProcess){
-        handleFromMainProcess(data)
-    }
-
+    handleFromMainProcess(data)
 })

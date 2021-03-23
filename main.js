@@ -4,7 +4,7 @@ const fs = require('fs')
 const path = require('path')
 let args = process.argv
 
-const actl = require('./lib/audioctl.js')
+//const actl = require('./lib/audioctl.js')
 const launch = require('./lib/launcher.js')
 
 let cloneObj = function(obj){ return JSON.parse(JSON.stringify(obj))}
@@ -13,18 +13,19 @@ const gotTheLock = app.requestSingleInstanceLock()
 const user = process.env.USER
 const os_platform = process.platform
 let app_data_path
-let hudClock = null
+
+let HUD = {}
 let config = {
 
 
 }
 app_data_path = process.env.HOME
-app_data_path += "/.config/linux-system-hud/"
-
+app_data_path += "/.linux-system-hud/"
+let realtime = false
 
 if ( !fs.existsSync( app_data_path ) ) {
     console.log("CREATE: user data folder", app_data_path);
-    //fs.mkdirSync( app_data_path , { recursive: true } )
+    fs.mkdirSync( app_data_path + "huds" , { recursive: true } )
 
     saveConfig()
 
@@ -107,8 +108,6 @@ app.whenReady().then(() => {
 
     const ret = globalShortcut.register('Super+Space', () => {
         console.log('super is pressed')
-        console.log("is isVisible",hudClock.isVisible())
-        console.log("isFocused",hudClock.isFocused())
         if (realtime === true) {
 
             wincmd.stopRealTimeData()
@@ -127,7 +126,11 @@ app.whenReady().then(() => {
 
     })
 
-    createHudClock()
+    // create the huds
+    loadHudData()
+
+
+
 
 })
 
@@ -155,7 +158,7 @@ function handleAnotherInstance(event, commandLine, workingDirectory) {
 
     else {
         //*** if there are any open windows focus them
-        //hudClock.show()
+
     }
 
 
@@ -168,98 +171,195 @@ function checkOkToQuit() {
 
 }
 
-//-----------------------------HUD CLOCK------------------------------------------
+//----------------------HUD creation------------------------------------
+
+let hud_defs = {
+    /*
+    volume:{
+        x:0, y:800, width:115 , height: 280,
+        frame:false, msg:["vol","vol_err"], active:true
+    }
+    */
+}
 
 
-function createHudClock () {
-    console.log("createHudClock", wincmd.screen);
+function loadHudData() {
+    console.log("LS: Begin loading hud data ");
+    // default
+    let hpath = path.join(__dirname, 'huds')
+    let filelist =  fs.readdirSync( hpath , { withFileTypes:true })
+    //console.log("datastore dir",filelist);
+
+    for (let i = 0; i < filelist.length; i++) {
+        //console.log(filelist[i]);
+        if (filelist[i].isDirectory()) {
+            let hudid = filelist[i].name
+            if ( fs.existsSync( hpath + "/" + hudid + "/config.json" )  ){
+                console.log("found a hud data folder");
+
+                hud_defs[hudid] = JSON.parse( fs.readFileSync(hpath + "/" + hudid + "/config.json",'utf8') )
+                hud_defs[hudid].path = hpath + "/" + hudid
+            }
+        }
+    }
+
+    // plugins
+    hpath = app_data_path + "huds"
+    filelist =  fs.readdirSync( hpath , { withFileTypes:true })
+    //console.log("datastore dir",filelist);
+
+    for (let i = 0; i < filelist.length; i++) {
+        //console.log(filelist[i]);
+        if (filelist[i].isDirectory()) {
+            let hudid = filelist[i].name
+            if ( fs.existsSync( hpath + "/" + hudid + "/config.json" )  ){
+                console.log("found a hud data folder");
+
+                hud_defs[hudid] = JSON.parse( fs.readFileSync(hpath + "/" + hudid + "/config.json",'utf8') )
+                hud_defs[hudid].path = hpath + "/" + hudid
+            }
+        }
+    }
+
+    console.log("LS: Finished loading data stores");
+
+    for (let id in hud_defs){
+        if (hud_defs[id].active === true){ createHud(id) }
+    }
+}
+
+
+
+function createHud(hudid) {
+    console.log("createHud", hudid);
     // Create the browser window.
-    hudClock = new BrowserWindow({
-        x:0,
-        y:0,
-        width: wincmd.screen.w,
-        height: wincmd.screen.h,
+    if ( HUD[hudid]) {
+        console.log("hud already exists");
+        return;
+     }
+    HUD[hudid] = {}
+    HUD[hudid].win = new BrowserWindow({
+        x:hud_defs[hudid].x,
+        y:hud_defs[hudid].y,
+        width: hud_defs[hudid].width,
+        height: hud_defs[hudid].height,
         //transparent:true,
-        frame:false,
+        frame:hud_defs[hudid].frame,
         //resizable:false,
         webPreferences: {
             contextIsolation: false,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(hud_defs[hudid].path , 'preload.js')
+            //preload: path.join(__dirname, 'preload.js')
         },
         //icon: path.join(__dirname, 'huds/assets/icons/logo.png')
     })
 
     // and load the index.html of the app.
-    hudClock.loadFile( path.join(__dirname,'huds/hud_clock.html') )
+    HUD[hudid].win.loadFile( path.join(hud_defs[hudid].path ,`${hudid}.html`) )
+    //HUD[hudid].win.loadFile( path.join(__dirname,`huds/${hudid}.html`) )
     // Open the DevTools.
-    hudClock.webContents.openDevTools()
-    wincmd.startRealTimeData()
+    HUD[hudid].win.webContents.openDevTools({mode:"detach"})
+    HUD[hudid].win.webContents.on("did-finish-load",() =>{
+        console.log(`HUD ${hudid} did-finish-load`);
+        checkHudsReady(hudid)
+    })
+}
+
+function checkHudsReady(hud) {
+    console.log("checkHudsReady",hud);
+    HUD[hud].ready = true
+    let all_ready = true
+    for (let id in HUD){
+        if (!HUD[id].ready) { all_ready = false }
+    }
+    if (all_ready === true) {
+        if (realtime === false ){ wincmd.startRealTimeData() }
+    }
+}
+
+
+//-----------------------------HUD messages------------------------------------------
+
+
+
+
+ipcMain.on("hud_window", (event, data) => {
+    console.log("hud_window",data);
+    if (data.type === "window_button") {
+
+        if (data.button === "win_minimize"){
+
+        }
+        if (data.button === "win_maximize"){
+
+        }
+        if (data.button === "win_close"){
+
+            for (let id in HUD){ HUD[id].win.close() }
+        }
+        if (data.button === "win_devtools"){
+            HUD[data.hud].win.webContents.openDevTools()
+        }
+
+    }
+
+
+})
+
+// all huds can send there data out to be used by other huds
+ipcMain.on("data_update", (event, data) => {
+    console.log("data_update", data);
+    for (let id in HUD){
+        if (hud_defs[id].msg.includes(data.type) && id !== data.hudid){
+            HUD[id].win.webContents.send("from_mainProcess", data )
+        }
+    }
+})
+
+
+
+//-----------realtime data loop-----------------------------------------------
+
+function showHuds(){
+    for (let id in HUD){ HUD[id].win.show()}
+}
+function hideHuds(){
+    for (let id in HUD){ HUD[id].win.hide()}
+}
+function sendToAllHuds(data){
+    for (let id in HUD){
+        HUD[id].win.webContents.send("from_mainProcess",data)
+    }
 }
 
 
 
-ipcMain.on("hud_clock_window", (event, data) => {
-    console.log("hud_clock_window",data);
-    if (data.type === "window_button") {
-        //hudClock.
-        if (data.button === "win_minimize"){
-            wincmd.stopRealTimeData()
-        }
-        if (data.button === "win_maximize"){
-            //hudClock.show()
-        }
-        if (data.button === "win_close"){
-            hudClock.close()
-        }
-        if (data.button === "win_devtools"){
-            hudClock.webContents.openDevTools()
-        }
-
-    }
-    if (data.type === "volume_change") {
-        actl.setVolume(data.value)
-    }
-
-})
-
-
-//-------------- audio control messages-----------------------------------------
-actl.msg.on("vol", function(vol){
-    if (hudClock !== null){
-        hudClock.webContents.send("from_mainProcess", { type:"volume_update", data:vol } )
-    }
-
-})
-
-
-//-----------realtime data loop-----------------------------------------------
-let realtime = true
 let wincmd = {}
 wincmd.loop = null
 wincmd.startRealTimeData = function() {
+    console.log("realtime started");
     realtime = true
-    actl.getVolume()
-    hudClock.webContents.send("from_mainProcess", { type:"start_realtime_data" } )
+    //actl.getVolume()
+    sendToAllHuds({ type:"start_realtime_data" })
     if (wincmd.loop === null){
         wincmd.loop = setInterval(function(){
             //do somthing
         },1000)
     }
-    hudClock.show()
 
-
+    showHuds()
 }
 
 wincmd.stopRealTimeData = function() {
+    console.log("realtime ended");
     realtime = false
-    hudClock.webContents.send("from_mainProcess", { type:"stop_realtime_data" } )
+    sendToAllHuds({ type:"stop_realtime_data" })
     if (wincmd.loop !== null) {
         clearInterval(wincmd.loop)
         wincmd.loop = null
     }
 
-    hudClock.hide()
-
+    hideHuds()
 }
 
 

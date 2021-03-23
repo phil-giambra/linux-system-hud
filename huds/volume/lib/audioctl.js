@@ -92,12 +92,12 @@ function parseVolume(str) {
 
 function emitVolume(vol) {
     console.log("emitVolume", vol);
-    mEmitter.emit("vol", vol)
+    mEmitter.emit("volume_update", vol)
 }
 
 function emitError(err){
     console.log("emitError", err);
-    mEmitter.emit("vol_err", err)
+    mEmitter.emit("volume_error", err)
 }
 
 /*
@@ -113,7 +113,7 @@ exports.msg = mEmitter;
 
 //  mEmitter.emit("auth", packet)
 
-console.log("Audio control module has been initiated");
+console.log("Audio control local module has been initiated");
 
 //setVolume(50)
 //getVolume()

@@ -1,0 +1,10 @@
+{
+    "id":"volume",
+    "x":0,
+    "y":800,
+    "width":115 ,
+    "height": 280,
+    "frame":false,
+    "msg":["volume_update","volume_error"], 
+    "active":true
+    }
