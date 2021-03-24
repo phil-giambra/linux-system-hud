@@ -16,8 +16,14 @@ const os_platform = process.platform
 let app_data_path
 
 let HUD = {}
+let focused_hud = null
 let config = {
-
+    keybinds:{
+        hide_show:"Super+Space",
+        focus_switch:"Super+Tab"
+    },
+    autohide:true,
+    autohide_delay:1000
 
 }
 app_data_path = process.env.HOME
@@ -41,7 +47,7 @@ if ( !fs.existsSync( app_data_path ) ) {
 }
 
 function saveConfig(){
-    //fs.writeFileSync(app_data_path + "config.json", JSON.stringify(config,null,4) ) //
+    fs.writeFileSync(app_data_path + "config.json", JSON.stringify(config,null,4) ) //
 }
 
 
@@ -107,8 +113,8 @@ app.whenReady().then(() => {
         checkArgs()
     }
 
-    const ret = globalShortcut.register('Super+Space', () => {
-        console.log('super is pressed')
+    const ret = globalShortcut.register(config.keybinds.hide_show, () => {
+        console.log('hide_show is pressed')
         if (realtime === true) {
 
             wincmd.stopRealTimeData()
@@ -121,8 +127,8 @@ app.whenReady().then(() => {
 
     })
 
-    const ret2 = globalShortcut.register('Super+Tab', () => {
-        console.log('super Tab is pressed')
+    const ret2 = globalShortcut.register(config.keybinds.focus_switch, () => {
+        console.log('focus_switch is pressed')
 
 
     })
@@ -247,6 +253,7 @@ function createHud(hudid) {
         height: hud_defs[hudid].height,
         //transparent:true,
         frame:hud_defs[hudid].frame,
+        show:hud_defs[hudid].show_on_startup
         //resizable:false,
         webPreferences: {
             contextIsolation: false,
@@ -264,6 +271,11 @@ function createHud(hudid) {
         HUD[hudid].win.webContents.openDevTools({mode:"detach"})
     }
 
+    // set always on top
+    if ( hud_defs[hudid].always_on_top === true ) {
+        HUD[hudid].win.setAlwaysOnTop(true)
+    }
+
     HUD[hudid].win.webContents.on("did-finish-load",() =>{
         console.log(`HUD ${hudid} did-finish-load`);
         checkHudsReady(hudid)
@@ -271,11 +283,15 @@ function createHud(hudid) {
     HUD[hudid].win.on("blur",() =>{
         console.log(`HUD ${hudid} is blurred`);
         HUD[hudid].focus = false
-        setTimeout(checkAllBlurred,500)
+        if (config.autohide === true) {
+            setTimeout(checkAllBlurred,config.autohide_delay)
+        }
+
     })
     HUD[hudid].win.on("focus",() =>{
         console.log(`HUD ${hudid} is focused`);
         HUD[hudid].focus = true
+        focused_hud = hudid
     })
 }
 
@@ -285,7 +301,9 @@ function checkAllBlurred() {
     for (let id in HUD){
         if (HUD[id].focus === true) { allblurred = false }
     }
-    if (allblurred === true && realtime === true) { wincmd.stopRealTimeData() }
+    if (allblurred === true && realtime === true ) {
+        wincmd.stopRealTimeData()
+    }
 }
 
 function checkHudsReady(hud) {
