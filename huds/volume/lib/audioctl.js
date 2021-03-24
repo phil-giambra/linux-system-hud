@@ -28,11 +28,14 @@ function setVolume(value){
     if ( value === "+" || value === "-"){
         mod = vol_step + "%" +value
     }
+    else if ( value === "toggle") {
+        mod = value
+    }
     else if ( parseInt(value) !== NaN) {
         mod = value + "%"
     }
     else {
-        emitError("setVolume requires '+' , '-' or a number")
+        emitError("setVolume requires '+' , '-' , 'toggle' or a number")
         return;
     }
     let errorbuf= ""

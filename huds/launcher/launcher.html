@@ -5,16 +5,22 @@
 
     <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=2.0" />
     <link rel='stylesheet' type='text/css' href='../share/assets/share.css' />
-    <link rel='stylesheet' type='text/css' href='assets/volume.css' />
+    <link rel='stylesheet' type='text/css' href='assets/launcher.css' />
     <title>linux-system-hud_self</title>
 </head>
 <body>
     <div id="wrapper">
-        <div id="move_resize_control" ></div>
-        <div  id="hoverbar" ></div>
+        <div id="move_resize_control" >
+            <div class="controls">
+                move
+            </div>
+            <div class="controls">
+                resize
+            </div>
+        </div>
+        <div id="hoverbar" ></div>
         <div id="top_panel">
             <img  id="resize_move_button" src="../share/assets/move.png" ></img>
-
             <div class="window_btns_cont">
                  <div class="window_btn" id="win_close" title="Close">X</div>
                  <!--
@@ -23,12 +29,10 @@
                  -->
              </div>
        </div>
-       <div id="mute_cont">Mute</div>
-       <div id="volume_change">
+       <div id="launch_list">
 
-           <div id="volume_numeric_display"></div>
-           <div id="volume_level_display"></div>
        </div>
+
     </div>
 
 
@@ -40,6 +44,6 @@
 
 
     <script src="../share/js/header.js"></script>
-    <script src="./js/volume.js"></script>
+    <script src="./js/launcher.js"></script>
 </body>
 </html>

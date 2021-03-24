@@ -1,0 +1,41 @@
+
+#wrapper{
+    position: absolute; top: 0px; left:0px; height:100%; width: 100%;
+    overflow: hidden; background:black;
+}
+
+
+
+#hoverbar {
+    position: absolute; width: 100%; height:30px; top: 0px; left: 0px;
+    overflow:auto; background: yellow; color: white; user-select: none;
+    overflow: visible; z-index: 10;
+}
+
+#top_panel {
+    position: absolute; width: 100%; height:30px; top: -30px; left: 0px;
+    overflow:auto; background: blue; color: white; user-select: none;
+    overflow: visible; z-index: 15;
+}
+#resize_move_button {
+    position: absolute; top: 0px; left:0px; height:30px; width: 30px;
+
+}
+
+.window_btns_cont {
+    position: absolute; top: 5px; right:5px; background: rgba(0,0,0,.5);
+    color:white; z-index: 15; -webkit-app-region: no-drag;
+}
+.window_btns_cont div{
+    display: inline-block; -webkit-app-region: no-drag; border-radius: 3px;
+    text-align: center; font-size: 80%; padding: 2px;
+}
+
+#move_resize_control {
+    position: absolute; top: 0px; left:0px; height:100%; width: 100%;
+    overflow: hidden; background:green; z-index: 100; display:none;
+    -webkit-app-region: drag;
+}
+#move_resize_control .controls {
+    display: inline-block; -webkit-app-region: no-drag
+}

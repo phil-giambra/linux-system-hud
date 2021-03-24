@@ -3,8 +3,11 @@
 let volume_change = document.getElementById("volume_change")
 let volume_numeric_display = document.getElementById("volume_numeric_display")
 let volume_level_display = document.getElementById("volume_level_display")
+let mute_cont = document.getElementById("mute_cont")
 
 volume_change.addEventListener("wheel",handleVolumeChange)
+
+mute_cont.addEventListener("click",toggleMute)
 
 function handleFromMainProcess(data){
     //console.log("handleFromMainProcess", data);
@@ -41,11 +44,23 @@ function handleVolumeChange(event) {
 
 }
 
+function toggleMute(event) {
+
+    actl.setVolume("toggle")
+}
 
 function handleVolumeUpdate(data) {
+    if (data.mute === true){
+        mute_cont.style.color = "red"
+        mute_cont.textContent = "Un-Mute"
+    } else {
+        mute_cont.style.color = "white"
+        mute_cont.textContent = "Mute"
+    }
     volume_numeric_display.textContent = data.level
     volume_level_display.style.height = (data.level * 2) + "px"
 }
+
 function handleVolumeError(data) {
     console.log(data);
 }
@@ -68,5 +83,5 @@ function handleWindowButton(event) {
         btn_id = event.target.id
     }
     console.log("win-button", btn_id);
-    lsh.send("hud_window",{type:"window_button", button:btn_id})
+    lsh.send("hud_window",{type:"window_button", button:btn_id, hudid: hudid })
 }

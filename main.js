@@ -5,7 +5,8 @@ const path = require('path')
 let args = process.argv
 
 //const actl = require('./lib/audioctl.js')
-const launch = require('./lib/launcher.js')
+//const launch = require('./lib/launcher.js')
+//const memuse = require('./lib/memory.js')
 
 let cloneObj = function(obj){ return JSON.parse(JSON.stringify(obj))}
 
@@ -229,7 +230,7 @@ function loadHudData() {
 }
 
 
-
+//*** add support for background_only always_on_top
 function createHud(hudid) {
     console.log("createHud", hudid);
     // Create the browser window.
@@ -238,6 +239,7 @@ function createHud(hudid) {
         return;
      }
     HUD[hudid] = {}
+    HUD[hudid].focus = false
     HUD[hudid].win = new BrowserWindow({
         x:hud_defs[hudid].x,
         y:hud_defs[hudid].y,
@@ -258,11 +260,32 @@ function createHud(hudid) {
     HUD[hudid].win.loadFile( path.join(hud_defs[hudid].path ,`${hudid}.html`) )
     //HUD[hudid].win.loadFile( path.join(__dirname,`huds/${hudid}.html`) )
     // Open the DevTools.
-    HUD[hudid].win.webContents.openDevTools({mode:"detach"})
+    if ( hud_defs[hudid].open_dev_tools === true ) {
+        HUD[hudid].win.webContents.openDevTools({mode:"detach"})
+    }
+
     HUD[hudid].win.webContents.on("did-finish-load",() =>{
         console.log(`HUD ${hudid} did-finish-load`);
         checkHudsReady(hudid)
     })
+    HUD[hudid].win.on("blur",() =>{
+        console.log(`HUD ${hudid} is blurred`);
+        HUD[hudid].focus = false
+        setTimeout(checkAllBlurred,500)
+    })
+    HUD[hudid].win.on("focus",() =>{
+        console.log(`HUD ${hudid} is focused`);
+        HUD[hudid].focus = true
+    })
+}
+
+function checkAllBlurred() {
+    console.log("checkAllBlurred");
+    let allblurred = true
+    for (let id in HUD){
+        if (HUD[id].focus === true) { allblurred = false }
+    }
+    if (allblurred === true && realtime === true) { wincmd.stopRealTimeData() }
 }
 
 function checkHudsReady(hud) {
@@ -277,25 +300,41 @@ function checkHudsReady(hud) {
     }
 }
 
+function destroyHud(hudid){
+    // close the hud and any other huds the depend on it
+    if (!HUD[hudid]) { return;}
+    if (HUD[hudid].win) {
+         HUD[hudid].win.close()
+     }
+    delete HUD[hudid]
+    for (let id in HUD){
+        if ( hud_defs[id].depends.includes(hudid)) {
+            destroyHud(id)
+
+        }
+
+    }
+}
 
 //-----------------------------HUD messages------------------------------------------
 
 
 
-
+// these are common actions any hud window can take
 ipcMain.on("hud_window", (event, data) => {
-    console.log("hud_window",data);
+    //console.log("hud_window",data);
+    let hudid = data.hudid
     if (data.type === "window_button") {
 
-        if (data.button === "win_minimize"){
+        if (data.button === "win_background_only"){
 
         }
         if (data.button === "win_maximize"){
 
         }
         if (data.button === "win_close"){
-
-            for (let id in HUD){ HUD[id].win.close() }
+            destroyHud(hudid)
+            //for (let id in HUD){ HUD[id].win.close() }
         }
         if (data.button === "win_devtools"){
             HUD[data.hud].win.webContents.openDevTools()
@@ -308,9 +347,9 @@ ipcMain.on("hud_window", (event, data) => {
 
 // all huds can send there data out to be used by other huds
 ipcMain.on("data_update", (event, data) => {
-    console.log("data_update", data);
+    //console.log("data_update", data);
     for (let id in HUD){
-        if (hud_defs[id].msg.includes(data.type) && id !== data.hudid){
+        if (hud_defs[id].subscribe.includes(data.type) || hud_defs[id].subscribe.includes("all")){
             HUD[id].win.webContents.send("from_mainProcess", data )
         }
     }
