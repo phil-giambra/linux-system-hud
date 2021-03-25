@@ -79,8 +79,36 @@ function checkArgs(cmdargs = args) {
 
 }
 
+let help = {
+    config:{
+        keybinds:{
+            hide_show:"Super+Space",
+            focus_switch:"Super+Tab"
+        },
+        autohide:true,
+        autohide_delay:1000
+    },
+    hud_config:{
+        id:"string | this hud id shuold be unique to all other huds",
+        x:"Int | window position ",
+        y:"Int | window position ",
+        width:"Int | window width " ,
+        height: "Int | window height ",
+        frame:"Bool | window has frame ",
+        depends:"Array | id's of any other huds this hud is dependant on ",
+        subscribe:"Array | message channnels this hud wants to recive data-updates on ",
+        offer:"Array | message channnels this hud provides for other huds to use ",
+        active:"Bool | message channnels this hud provides for other huds to use ",
+        background_only:"Bool | if true this hud window will never be shown ",
+        always_on_top:"Bool | should this hud stay above other windows ",
+        show_on_startup:"Bool | should this hud window be shown when it's created ",
+        open_dev_tools:"Bool | open chrome developer tools window when hud is created ",
+
+    }
+}
 function showHelp() {
-    console.log("Linux-System-Hub Command options");
+    console.log("Linux-System-Hub Command & Config options");
+
 
 }
 
@@ -191,7 +219,7 @@ let hud_defs = {
 
 
 function loadHudData() {
-    console.log("LS: Begin loading hud data ");
+    console.log("LSH: Begin loading hud definitions ");
     // default
     let hpath = path.join(__dirname, 'huds')
     let filelist =  fs.readdirSync( hpath , { withFileTypes:true })
@@ -228,51 +256,58 @@ function loadHudData() {
         }
     }
 
-    console.log("LS: Finished loading data stores");
-
+    console.log("LS: Finished loading hud definitions");
+    // create all active huds
     for (let id in hud_defs){
         if (hud_defs[id].active === true){ createHud(id) }
     }
 }
 
 
-//*** add support for background_only always_on_top
+//*** add support for background_only
 function createHud(hudid) {
     console.log("createHud", hudid);
     // Create the browser window.
     if ( HUD[hudid]) {
         console.log("hud already exists");
         return;
-     }
+    }
+    //reference this huds definition
+    let hdef = hud_defs[hudid]
+    // check weather to show this hud
+    let show_win = true
+    if (hdef.show_on_startup === false || hdef.background_only === true) {
+        show_win = false
+    }
     HUD[hudid] = {}
     HUD[hudid].focus = false
     HUD[hudid].win = new BrowserWindow({
-        x:hud_defs[hudid].x,
-        y:hud_defs[hudid].y,
-        width: hud_defs[hudid].width,
-        height: hud_defs[hudid].height,
+        x:hdef.x,
+        y:hdef.y,
+        width: hdef.width,
+        height: hdef.height,
         //transparent:true,
-        frame:hud_defs[hudid].frame,
-        show:hud_defs[hudid].show_on_startup
+        frame:hdef.frame,
+        show:show_win,
         //resizable:false,
         webPreferences: {
             contextIsolation: false,
-            preload: path.join(hud_defs[hudid].path , 'preload.js')
-            //preload: path.join(__dirname, 'preload.js')
+            preload: path.join(hdef.path , 'preload.js')
+
         },
         //icon: path.join(__dirname, 'huds/assets/icons/logo.png')
     })
 
-    // and load the index.html of the app.
-    HUD[hudid].win.loadFile( path.join(hud_defs[hudid].path ,`${hudid}.html`) )
-    //HUD[hudid].win.loadFile( path.join(__dirname,`huds/${hudid}.html`) )
+    // and load the html of the hud.
+    HUD[hudid].win.loadFile( path.join(hdef.path ,`${hudid}.html`) )
+
     // Open the DevTools.
-    if ( hud_defs[hudid].open_dev_tools === true ) {
+    if ( hdef.open_dev_tools === true ) {
         HUD[hudid].win.webContents.openDevTools({mode:"detach"})
     }
 
     // set always on top
-    if ( hud_defs[hudid].always_on_top === true ) {
+    if ( hdef.always_on_top === true ) {
         HUD[hudid].win.setAlwaysOnTop(true)
     }
 
@@ -306,15 +341,18 @@ function checkAllBlurred() {
     }
 }
 
+// on startup make sure all the huds have loaded up before showing them
+//*** this may need to be adjusted to handle background_only huds and
+//    maybe for show_on_startup:false if they don't emit did-finish-load
 function checkHudsReady(hud) {
     console.log("checkHudsReady",hud);
     HUD[hud].ready = true
     let all_ready = true
     for (let id in HUD){
-        if (!HUD[id].ready) { all_ready = false }
+        if (HUD[id].active === true && !HUD[id].ready) { all_ready = false }
     }
-    if (all_ready === true) {
-        if (realtime === false ){ wincmd.startRealTimeData() }
+    if (all_ready === true && realtime === false  ) {
+        wincmd.startRealTimeData()
     }
 }
 
