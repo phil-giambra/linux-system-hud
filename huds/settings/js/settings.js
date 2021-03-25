@@ -25,10 +25,6 @@ function handleFromMainProcess(data){
 }
 
 
-function updateAppList() {
-    console.log("updateAppList",lctl.getAppList());
-}
-
 //-----------------------window buttons----------------------------------------
 // menu and main button listeners
 let window_buttons = document.getElementsByClassName("window_btn");

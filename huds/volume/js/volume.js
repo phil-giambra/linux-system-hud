@@ -21,6 +21,10 @@ function handleFromMainProcess(data){
         STATE.realtime = false
 
     }
+    if (data.type === "config_definition"){
+        console.log("config_definition");
+        config = data.data
+    }
     if (data.type === "volume_change"){
         console.log("volume_change");
         actl.setVolume(data.value)
@@ -39,13 +43,12 @@ function handleVolumeChange(event) {
         console.log("volume up",event.deltaY);
     }
     actl.setVolume(updown)
-    //lsh.send("hud_window", { type:"volume_change", value:updown } )
+
 
 
 }
 
 function toggleMute(event) {
-
     actl.setVolume("toggle")
 }
 
