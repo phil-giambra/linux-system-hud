@@ -1,12 +1,10 @@
-const {app, BrowserWindow, ipcMain, Menu, globalShortcut} = require('electron')
+const {app, BrowserWindow,  BrowserView, ipcMain, Menu, globalShortcut} = require('electron')
 const { fork , spawn } = require('child_process');
 const fs = require('fs')
 const path = require('path')
 let args = process.argv
 
 const util = require('./lib/utility.js')
-//const launch = require('./lib/launcher.js')
-//const memuse = require('./lib/memory.js')
 
 let cloneObj = function(obj){ return JSON.parse(JSON.stringify(obj))}
 
@@ -16,6 +14,7 @@ const os_platform = process.platform
 let app_data_path
 
 let HUD = {}
+let KEYBIND = {}
 let focused_hud = null
 let xonly = false
 let config = {
@@ -24,6 +23,7 @@ let config = {
         focus_switch:"Super+Tab",
         quit:"Super+q"
     },
+    default_huds:["volume"],
     autohide:true,
     autohide_delay:1000
 
@@ -82,6 +82,22 @@ function showHelp() {
     app.quit()
 }
 
+function handleAnotherInstance(event, commandLine, workingDirectory) {
+    console.log("handleAnotherInstance:", commandLine);
+    console.log("handleAnotherInstance:", workingDirectory);
+    // nothing to do here
+}
+
+
+function checkOkToQuit() {
+    app.quit()
+}
+
+
+app.on('window-all-closed', function () { checkOkToQuit() })
+
+
+app.on('will-quit',function(event) { console.log("going to quit"); })
 
 app.whenReady().then(() => {
 
@@ -93,76 +109,51 @@ app.whenReady().then(() => {
         else {
             console.log("Linux-system-hud is already running ");
             console.log(`Press ${config.keybinds.hide_show} to show it`);
+            console.log(`Press ${config.keybinds.quit} to close it`);
+            app.quit()
         }
-        app.quit()
+
 
     } else {
 
         app.on('second-instance', (event, commandLine, workingDirectory) => {
-            // nothing to do here
+
+            handleAnotherInstance(event, commandLine, workingDirectory)
         })
+
+        KEYBIND.hide_show = globalShortcut.register(config.keybinds.hide_show, () => {
+            console.log('hide_show is pressed')
+            if (realtime === true) {
+                stopRealTimeData()
+            } else {
+                startRealTimeData()
+            }
+
+        })
+
+        KEYBIND.focus_switch = globalShortcut.register(config.keybinds.focus_switch, () => {
+            console.log('focus_switch is pressed')
+
+
+        })
+        KEYBIND.quit = globalShortcut.register(config.keybinds.quit, () => {
+            console.log('quit is pressed')
+            let x = 0
+            for (let id in HUD){ x++; HUD[id].win.close() }
+            if (x === 0) { checkOkToQuit() }
+        })
+
+        checkArgs()
+
     }
 
-    const keybind1 = globalShortcut.register(config.keybinds.hide_show, () => {
-        console.log('hide_show is pressed')
-        if (realtime === true) {
-
-            wincmd.stopRealTimeData()
-        } else {
-
-            wincmd.startRealTimeData()
-
-
-        }
-
-    })
-
-    const keybind2 = globalShortcut.register(config.keybinds.focus_switch, () => {
-        console.log('focus_switch is pressed')
-
-
-    })
-    const keybind3 = globalShortcut.register(config.keybinds.quit, () => {
-        console.log('quit is pressed')
-        for (let id in HUD){
-            HUD[id].win.close()
-        }
-
-    })
-    checkArgs()
-
-
-
-
 
 })
 
 
-app.on('window-all-closed', function () {
-
-    checkOkToQuit()
-
-})
 
 
-app.on('will-quit',function(event) {
-    console.log("going to quit");
 
-})
-
-
-function handleAnotherInstance(event, commandLine, workingDirectory) {
-    console.log("handleAnotherInstance:", commandLine);
-    console.log("handleAnotherInstance:", workingDirectory);
-
-}
-
-
-function checkOkToQuit() {
-
-    app.quit()
-
-}
 
 //----------------------HUD creation------------------------------------
 
@@ -171,10 +162,17 @@ let hud_defs = {}
 
 function loadHudData() {
     console.log("LSH: Begin loading hud definitions ");
+    let filelist, hpath
+    hpath = path.join(__dirname, 'node_modules')
+    config.default_huds.forEach((hudid, i) => {
+        hud_defs[hudid] = JSON.parse( fs.readFileSync(hpath + "/lshud-" + hudid + "/config.json",'utf8') )
+        hud_defs[hudid].path = hpath + "/lshud-" + hudid
+    });
+
     // default
-    let hpath = path.join(__dirname, 'huds')
-    let filelist =  fs.readdirSync( hpath , { withFileTypes:true })
-    //console.log("datastore dir",filelist);
+    /*
+    hpath = path.join(__dirname, 'huds')
+    filelist =  fs.readdirSync( hpath , { withFileTypes:true })
 
     for (let i = 0; i < filelist.length; i++) {
         //console.log(filelist[i]);
@@ -188,7 +186,7 @@ function loadHudData() {
             }
         }
     }
-
+    */
     // plugins
     hpath = app_data_path + "huds"
     filelist =  fs.readdirSync( hpath , { withFileTypes:true })
@@ -254,10 +252,29 @@ function createHud(hudid) {
         },
         //icon: path.join(__dirname, 'huds/assets/icons/logo.png')
     })
-
+    // hide the default electron menu
+    HUD[hudid].win.setMenuBarVisibility(false)
     // and load the html of the hud.
     HUD[hudid].win.loadFile( path.join(hdef.path ,`${hudid}.html`) )
+    // check for and load browser views
+    if (hdef.url !== null){
+        console.log("create browserview");
+        HUD[hudid].view = new BrowserView()
+        HUD[hudid].view.setBounds(hdef.url_bounds)
+        HUD[hudid].view.setAutoResize(hdef.url_auto_resize)
+        HUD[hudid].view.webContents.loadURL(hdef.url)
+        HUD[hudid].view.webContents.on("did-finish-load",() =>{
+            console.log(`HUDVIEW ${hudid} did-finish-load`);
 
+        })
+        HUD[hudid].view.webContents.on("context-menu",(e) =>{
+            console.log(`HUDVIEW ${hudid} context-menu`,e);
+
+        })
+        //HUD[hudid].view.webContents.openDevTools({mode:"detach"})
+        HUD[hudid].win.setBrowserView(HUD[hudid].view)
+
+    }
     // Open the DevTools.
     if ( hdef.open_dev_tools === true ) {
         HUD[hudid].win.webContents.openDevTools({mode:"detach"})
@@ -275,6 +292,7 @@ function createHud(hudid) {
         HUD[hudid].ready = true
         // send the hud it's config definition
         HUD[hudid].win.webContents.send("from_mainProcess",{type:"config_definition", data:hud_defs[hudid]})
+        hudSendPositionSize(hudid)
         if (hdef.hud_type === "normal" ){ checkHudsReady(hudid) }
 
     })
@@ -297,10 +315,20 @@ function createHud(hudid) {
         }
 
     })
+    HUD[hudid].win.on("resize",() =>{
+        console.log(`HUD ${hudid} is resize`);
+        hudSendPositionSize(hudid)
+    })
+    HUD[hudid].win.on("move",() =>{
+        console.log(`HUD ${hudid} is move`);
+        hudSendPositionSize(hudid)
+    })
     HUD[hudid].win.on("closed",() =>{
         destroyHud(hudid)
 
     })
+
+
 }
 
 // as it stands if any hud regardless of hud_type has focus
@@ -314,7 +342,7 @@ function checkAllBlurred() {
         if (HUD[id].focus === true ) { allblurred = false }
     }
     if (allblurred === true && realtime === true ) {
-        wincmd.stopRealTimeData()
+        stopRealTimeData()
     }
 }
 
@@ -329,7 +357,7 @@ function checkHudsReady(hud) {
         if (hud_defs[id].active === true && !HUD[id].ready) { all_ready = false }
     }
     if (all_ready === true && realtime === false  ) {
-        wincmd.startRealTimeData()
+        startRealTimeData()
     }
 }
 
@@ -349,31 +377,50 @@ function destroyHud(hudid){
     */
 }
 
-//-----------------------------HUD messages------------------------------------------
+//-----------------------------HUD messages to MAIN-----------------------------
 
 
 
-// these are common actions any hud window can take
+// these are common actions/requests for the hud windows
 ipcMain.on("hud_window", (event, data) => {
     //console.log("hud_window",data);
     let hudid = data.hudid
     if (data.type === "window_button") {
 
         if (data.button === "win_pin_toggle"){
-
+            if (hud_defs[hudid].is_pinned === true)
+            { unsetPinHud(hudid) } else { setPinHud(hudid) }
         }
         if (data.button === "win_hidden_toggle"){
-
+            if (hud_defs[hudid].is_hidden === true)
+            { unsetHiddenHud(hudid) } else { setHiddenHud(hudid) }
         }
         if (data.button === "win_close"){
             HUD[hudid].win.close()
-
         }
         if (data.button === "win_devtools"){
-            HUD[data.hud].win.webContents.openDevTools({mode:"detach"})
+            HUD[hudid].win.webContents.openDevTools({mode:"detach"})
         }
 
     }
+    if (data.type === "request_hud_defs") {
+        sendToHud(hudid,{ type:"request_hud_defs" , data:hud_defs })
+    }
+    if (data.type === "request_hud_list") {
+        let hudlist = {}
+        for (let hid in HUD){
+            hudlist[hid] = {}
+            for (let prop in HUD[hid]){
+                if (prop !== "win") { hudlist[hid][prop] = HUD[hid][prop]  }
+            }
+        }
+        sendToHud(hudid,{ type:"request_hud_list" , data:hudlist })
+    }
+    if (data.type === "window_move_resize") {
+        console.log("window_move_resize", data.data);
+        HUD[hudid].win.setBounds(data.data)
+    }
+
 
 
 })
@@ -385,16 +432,37 @@ ipcMain.on("data_update", (event, data) => {
     console.log("data_update", data);
     for (let id in HUD){
         if (hud_defs[id].subscribe.includes(data.type) || hud_defs[id].subscribe.includes("all")){
-            HUD[id].win.webContents.send("from_mainProcess", data )
+            HUD[id].win.webContents.send("data_update", data )
         }
     }
 })
 
 
+//-----------------------------MAIN messages to HUD-----------------------------
 
-//-----------realtime data loop-----------------------------------------------
 
-function showHuds(){
+
+function sendToAllHuds(data){
+    for (let id in HUD){
+        HUD[id].win.webContents.send("from_mainProcess",data)
+    }
+}
+
+function sendToHud(id,data) {
+    if (HUD[id] && HUD[id].win) {
+        HUD[id].win.webContents.send("from_mainProcess",data)
+    }
+}
+
+function hudSendPositionSize(id){
+    HUD[id].win.webContents.send("from_mainProcess",{
+        type:"position_size_update", bounds:HUD[id].win.getBounds()
+    })
+}
+
+//------------------- show and hide huds ---------------------------------------
+
+function showNormalHuds(){
     //*** maybe check here for any active, non-hidden, normal huds that have been
     //    destroyed and recreate them
     for (let id in hud_defs){
@@ -408,7 +476,7 @@ function showHuds(){
         }
     }
 }
-function hideHuds(){
+function hideNormalHuds(){
     for (let id in HUD){
         if (  hud_defs[id].hud_type === "normal" &&  hud_defs[id].is_hidden === false ) {
             if (hud_defs[id].is_pinned === false) {
@@ -418,45 +486,86 @@ function hideHuds(){
     }
 }
 
-function sendToAllHuds(data){
-    for (let id in HUD){
-        HUD[id].win.webContents.send("from_mainProcess",data)
+// hide and show individual huds overriding pinned/hidden
+function showHud(id) {
+    // check if the hud exist
+    if (!hud_defs[id] || hud_defs[id].active === false ) {
+        console.log(`HUD ${id} is not defined or Inactive`);
+        return;
     }
+    if (!HUD[id]) {
+        createHud(id)
+        return;
+    }
+    if ( hud_defs[id].hud_type === "normal" || hud_defs[id].hud_type === "freestyle"  ) {
+        if ( HUD[id].win ) { HUD[id].win.show() }
+    }
+    if (hud_defs[id].is_hidden === true) {
+        unsetHiddenHud(id)
+    }
+}
+
+function hideHud(id) {
+    if (HUD[id] && HUD[id].win) {
+        HUD[id].win.hide()
+    }
+    if (hud_defs[id].is_pinned === true) {
+        unsetPinHud(id)
+    }
+}
+
+//*** need to add config saves in these
+function setPinHud(id) {
+    hud_defs[id].is_pinned = true
+}
+
+function unsetPinHud(id) {
+    hud_defs[id].is_pinned = false
+}
+
+function setHiddenHud(id) {
+    hud_defs[id].is_hidden = true
+}
+
+function unsetHiddenHud(id) {
+    hud_defs[id].is_hidden = false
 }
 
 
 
-let wincmd = {}
-wincmd.loop = null
-wincmd.startRealTimeData = function() {
+let screen_size
+let data_loop = null
+
+function startRealTimeData() {
     console.log("realtime started");
     realtime = true
+
     //actl.getVolume()
     sendToAllHuds({ type:"start_realtime_data" })
-    if (wincmd.loop === null){
-        wincmd.loop = setInterval(function(){
+    if (data_loop === null){
+        data_loop = setInterval(function(){
             //do somthing
         },1000)
     }
 
-    showHuds()
+    showNormalHuds()
 }
 
-wincmd.stopRealTimeData = function() {
+function stopRealTimeData() {
     console.log("realtime ended");
     realtime = false
     sendToAllHuds({ type:"stop_realtime_data" })
-    if (wincmd.loop !== null) {
-        clearInterval(wincmd.loop)
-        wincmd.loop = null
+    if (data_loop !== null) {
+        clearInterval(data_loop)
+        data_loop = null
     }
 
-    hideHuds()
+    hideNormalHuds()
 }
 
 
 
-wincmd.getScreenSize = function(){
+function getScreenSize(){
     let databuf = ""
     let probespawn = spawn("sh", ["-c","xrandr --current | grep '*+'" ])
        probespawn.stdout.on('data', (data) => { databuf += data });
@@ -469,12 +578,13 @@ wincmd.getScreenSize = function(){
              s[i] = item.trim().split(" ")
              s[i] = s[i][0].trim().split("x")
          });
-         console.log("wincmd.getScreenSize",s[0]);
-         wincmd.screen = { w:parseInt(s[0][0]), h:parseInt(s[0][1]) }
+         console.log("getScreenSize",s[0]);
+         screen_size = { w:parseInt(s[0][0]), h:parseInt(s[0][1]) }
 
      })
 }
 
 
-wincmd.getScreenSize();
+getScreenSize();
+//console.log("screen_size",screen_size);
 //console.log(actl.getVolume());
