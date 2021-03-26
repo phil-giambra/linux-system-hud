@@ -35,6 +35,7 @@ let realtime = false
 if ( !fs.existsSync( app_data_path ) ) {
     console.log("CREATE: user data folder", app_data_path);
     fs.mkdirSync( app_data_path + "huds" , { recursive: true } )
+    fs.mkdirSync( app_data_path + "hud_defs" , { recursive: true } )
 
     saveConfig()
 
@@ -163,9 +164,13 @@ let hud_defs = {}
 function loadHudData() {
     console.log("LSH: Begin loading hud definitions ");
     let filelist, hpath
+    let defpath = path.join(app_data_path, "hud_defs")
     hpath = path.join(__dirname, 'node_modules')
     config.default_huds.forEach((hudid, i) => {
-        hud_defs[hudid] = JSON.parse( fs.readFileSync(hpath + "/lshud-" + hudid + "/config.json",'utf8') )
+        if (!fs.existsSync( path.join(defpath, hudid+".json") )){
+            fs.copyFileSync( path.join(hpath, "/lshud-" + hudid + "/config.json") , path.join(defpath, hudid+".json") )
+        }
+        hud_defs[hudid] = JSON.parse( fs.readFileSync( path.join(defpath, hudid+".json") , 'utf8' ) )
         hud_defs[hudid].path = hpath + "/lshud-" + hudid
     });
 
