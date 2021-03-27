@@ -18,6 +18,8 @@ let KEYBIND = {}
 let focused_hud = null
 let xonly = false
 let realtime = false
+let screen_size
+let data_loop = null
 let config = {
     keybinds:{
         hide_show:"Super+Space",
@@ -43,7 +45,7 @@ catch (e) {lcmds.zip = null }
 try { lcmds.unzip = execSync("which unzip").toString().trim() }
 catch (e) {lcmds.unzip = null }
 try { lcmds.tar = execSync("which tar").toString().trim() }
-catch (e) {lcmds.tar = null }        
+catch (e) {lcmds.tar = null }
 
 
 
@@ -67,7 +69,7 @@ console.log("appdata",appdata);
 
 
 if ( !fs.existsSync( appdata.base ) ) {
-    console.log("CREATE: user data folders", appdata.base);
+    console.log("LSH: create user data folders", appdata.base);
     for (let p in appdata) {
         fs.mkdirSync( appdata[p] , { recursive: true } )
     }
@@ -112,7 +114,7 @@ function resetCustomShared() {
 
 //-------------------------COMMAND ARGS---------------------------------------
 function checkArgs(cmdargs = args) {
-    console.log(cmdargs);
+    console.log("LSH: command args ", cmdargs);
     let optionSet = false
     cmdargs.forEach((item, i) => {
         // show help for command line
@@ -135,7 +137,7 @@ function checkArgs(cmdargs = args) {
 }
 
 function showHelp() {
-    console.log("Linux-System-Hub Command & Config options");
+    console.log("Linux-System-Hud Command & Config options");
     console.log(util.help);
     app.quit()
 }
@@ -155,7 +157,7 @@ function checkOkToQuit() {
 app.on('window-all-closed', function () { checkOkToQuit() })
 
 
-app.on('will-quit',function(event) { console.log("going to quit"); })
+app.on('will-quit',function(event) { console.log("LSH: going to quit"); })
 
 app.whenReady().then(() => {
 
@@ -180,7 +182,7 @@ app.whenReady().then(() => {
         })
 
         KEYBIND.hide_show = globalShortcut.register(config.keybinds.hide_show, () => {
-            console.log('hide_show is pressed')
+            //console.log('hide_show is pressed')
             if (realtime === true) {
                 stopRealTimeData()
             } else {
@@ -190,12 +192,12 @@ app.whenReady().then(() => {
         })
 
         KEYBIND.focus_switch = globalShortcut.register(config.keybinds.focus_switch, () => {
-            console.log('focus_switch is pressed')
+            //console.log('focus_switch is pressed')
 
 
         })
         KEYBIND.quit = globalShortcut.register(config.keybinds.quit, () => {
-            console.log('quit is pressed')
+            //console.log('quit is pressed')
             let x = 0
             for (let id in HUD){ x++; HUD[id].win.close() }
             if (x === 0) { checkOkToQuit() }
@@ -242,14 +244,12 @@ function loadHudData() {
     // plugins
     hpath = appdata.huds
     filelist =  fs.readdirSync( hpath , { withFileTypes:true })
-    //console.log("datastore dir",filelist);
-
     for (let i = 0; i < filelist.length; i++) {
         //console.log(filelist[i]);
         if (filelist[i].isDirectory()) {
             let hudid = filelist[i].name
             if ( fs.existsSync( path.join( hpath , hudid , "config.json" ) )  ){
-                console.log("found a hud data folder");
+                console.log("LSH: found hud folder ", hudid);
                 if (!fs.existsSync( path.join(appdata.hdef, hudid+".json") )){
                     resetHudDef(hudid)
                 }
@@ -260,7 +260,7 @@ function loadHudData() {
         }
     }
 
-    console.log("LS: Finished loading hud definitions");
+    console.log("LSH: Finished loading hud definitions");
     // create all active huds
     for (let id in HDEF){
         if (HDEF[id].active === true){ createHud(id) }
@@ -272,10 +272,10 @@ function loadHudData() {
 
 //*** test support for background_only huds
 function createHud(hudid) {
-    console.log("createHud", hudid);
+    console.log("LSH createHud() ", hudid);
     // Create the browser window.
     if ( HUD[hudid]) {
-        console.log("hud already exists");
+        console.log(`LSH: hud ${hudid} already exists`);
         return;
     }
     //reference this huds definition
@@ -313,19 +313,20 @@ function createHud(hudid) {
     HUD[hudid].win.setMenuBarVisibility(false)
     // and load the html of the hud.
     HUD[hudid].win.loadFile( path.join(hdef.path ,`index.html`) )
+    HUD[hudid].views = {}
     // check for and load browser views
     if (hdef.url !== null){
-        console.log("create browserview");
+        console.log("create first browserview");
         HUD[hudid].view = new BrowserView()
         HUD[hudid].view.setBounds(hdef.url_bounds)
         HUD[hudid].view.setAutoResize(hdef.url_auto_resize)
         HUD[hudid].view.webContents.loadURL(hdef.url)
         HUD[hudid].view.webContents.on("did-finish-load",() =>{
-            console.log(`HUDVIEW ${hudid} did-finish-load`);
+            console.log(`LSH:HUDVIEW ${hudid} did-finish-load`);
 
         })
         HUD[hudid].view.webContents.on("context-menu",(e) =>{
-            console.log(`HUDVIEW ${hudid} context-menu`,e);
+            console.log(`LSH:HUDVIEW ${hudid} context-menu`,e);
 
         })
         //HUD[hudid].view.webContents.openDevTools({mode:"detach"})
@@ -345,7 +346,7 @@ function createHud(hudid) {
 
 
     HUD[hudid].win.webContents.on("did-finish-load",() =>{
-        console.log(`HUD ${hudid} did-finish-load`);
+        console.log(`LSH: hud ${hudid} did-finish-load`);
         HUD[hudid].ready = true
         // send the hud it's config definition
         HUD[hudid].win.webContents.send("from_mainProcess",{type:"config_definition", data:HDEF[hudid]})
@@ -355,7 +356,7 @@ function createHud(hudid) {
     })
 
     HUD[hudid].win.on("blur",() =>{
-        console.log(`HUD ${hudid} is blurred`);
+        //console.log(`HUD ${hudid} is blurred`);
         HUD[hudid].focus = false
         if (config.autohide === true  ) {
             if ( hdef.hud_type === "normal" ||  hdef.hud_type === "freestyle"  ){
@@ -365,7 +366,7 @@ function createHud(hudid) {
 
     })
     HUD[hudid].win.on("focus",() =>{
-        console.log(`HUD ${hudid} is focused`);
+        //console.log(`HUD ${hudid} is focused`);
         HUD[hudid].focus = true
         if ( hdef.hud_type === "normal" ) {
             focused_hud = hudid
@@ -373,11 +374,11 @@ function createHud(hudid) {
 
     })
     HUD[hudid].win.on("resize",() =>{
-        console.log(`HUD ${hudid} is resize`);
+        //console.log(`HUD ${hudid} is resize`);
         hudSendPositionSize(hudid)
     })
     HUD[hudid].win.on("move",() =>{
-        console.log(`HUD ${hudid} is move`);
+        //console.log(`HUD ${hudid} is move`);
         hudSendPositionSize(hudid)
     })
     HUD[hudid].win.on("closed",() =>{
@@ -393,7 +394,7 @@ function createHud(hudid) {
 //*** maybe want to change this to check only normal huds here, would also
 //    have to change the blur event
 function checkAllBlurred() {
-    console.log("checkAllBlurred");
+    //console.log("checkAllBlurred");
     let allblurred = true
     for (let id in HUD){
         if (HUD[id].focus === true ) { allblurred = false }
@@ -407,7 +408,7 @@ function checkAllBlurred() {
 //*** this may need to be adjusted/tested to handle hud_type:background  and
 //    maybe for show_on_startup:false if they don't emit did-finish-load
 function checkHudsReady(hud) {
-    console.log("checkHudsReady",hud);
+    //console.log("checkHudsReady",hud);
 
     let all_ready = true
     for (let id in HUD){
@@ -486,7 +487,7 @@ ipcMain.on("hud_window", (event, data) => {
 // this channel recives the output from huds and then sends it
 // to any huds that are subscribed
 ipcMain.on("data_update", (event, data) => {
-    console.log("data_update", data);
+    //console.log("data_update", data);
     for (let id in HUD){
         if (HDEF[id].subscribe.includes(data.type) || HDEF[id].subscribe.includes("all")){
             HUD[id].win.webContents.send("data_update", data )
@@ -547,7 +548,7 @@ function hideNormalHuds(){
 function showHud(id) {
     // check if the hud exist
     if (!HDEF[id] || HDEF[id].active === false ) {
-        console.log(`HUD ${id} is not defined or Inactive`);
+        console.log(`LSH hud ${id} is not defined or it is inactive`);
         return;
     }
     if (!HUD[id]) {
@@ -590,11 +591,10 @@ function unsetHiddenHud(id) {
 
 
 
-let screen_size
-let data_loop = null
+
 
 function startRealTimeData() {
-    console.log("realtime started");
+    console.log("LSH: realtime started");
     realtime = true
 
     //actl.getVolume()
@@ -609,7 +609,7 @@ function startRealTimeData() {
 }
 
 function stopRealTimeData() {
-    console.log("realtime ended");
+    console.log("LSH: realtime ended");
     realtime = false
     sendToAllHuds({ type:"stop_realtime_data" })
     if (data_loop !== null) {
@@ -623,6 +623,9 @@ function stopRealTimeData() {
 
 
 function getScreenSize(){
+    if (lcmds.xrandr === null) {
+        screen_size = { w: 1920, h: 1080 }
+    }
     let databuf = ""
     let probespawn = spawn("sh", ["-c","xrandr --current | grep '*+'" ])
        probespawn.stdout.on('data', (data) => { databuf += data });
@@ -635,13 +638,11 @@ function getScreenSize(){
              s[i] = item.trim().split(" ")
              s[i] = s[i][0].trim().split("x")
          });
-         console.log("getScreenSize",s[0]);
+         //console.log("getScreenSize",s[0]);
          screen_size = { w:parseInt(s[0][0]), h:parseInt(s[0][1]) }
-
+         console.log("LSH computed screen size ", screen_size);
      })
 }
 
 
 getScreenSize();
-//console.log("screen_size",screen_size);
-//console.log(actl.getVolume());
