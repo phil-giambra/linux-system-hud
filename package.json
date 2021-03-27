@@ -22,6 +22,6 @@
   "author": "Phil Giambra",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^11.1.1"
+    
   }
 }
