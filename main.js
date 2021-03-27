@@ -33,11 +33,23 @@ let config = {
 let lcmds = {
     xrandr:null, amixer:null, zip:null, unzip:null, tar:null
 }
-lcmds.xrandr = execSync("which xrandr").toString().trim()
-lcmds.amixer = execSync("which amixer").toString().trim()
-lcmds.zip = execSync("which zip").toString().trim()
-lcmds.unzip = execSync("which unzip").toString().trim()
-lcmds.tar = execSync("which tar").toString().trim()
+
+try { lcmds.xrandr = execSync("which xrandr").toString().trim() }
+catch (e) {lcmds.xrandr = null }
+try { lcmds.amixer = execSync("which amixer").toString().trim() }
+catch (e) {lcmds.amixer = null }
+try { lcmds.zip = execSync("which zip").toString().trim() }
+catch (e) {lcmds.zip = null }
+try { lcmds.unzip = execSync("which unzip").toString().trim() }
+catch (e) {lcmds.unzip = null }
+try { lcmds.tar = execSync("which tar").toString().trim() }
+catch (e) {lcmds.tar = null }        
+
+
+
+
+
+
 
 console.log(lcmds);
 //-----------------------USER DATA-------------------------------------------
