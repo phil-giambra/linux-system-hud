@@ -1,5 +1,5 @@
 const {app, BrowserWindow,  BrowserView, ipcMain, Menu, globalShortcut} = require('electron')
-const { fork , spawn } = require('child_process');
+const { fork , spawn , execSync } = require('child_process');
 const fs = require('fs')
 const path = require('path')
 let args = process.argv
@@ -11,38 +11,62 @@ let cloneObj = function(obj){ return JSON.parse(JSON.stringify(obj))}
 const gotTheLock = app.requestSingleInstanceLock()
 const user = process.env.USER
 const os_platform = process.platform
-let app_data_path
 
 let HUD = {}
+let HDEF = {}
 let KEYBIND = {}
 let focused_hud = null
 let xonly = false
+let realtime = false
 let config = {
     keybinds:{
         hide_show:"Super+Space",
         focus_switch:"Super+Tab",
         quit:"Super+q"
     },
-    default_huds:["volume"],
+    default_huds:["lshud-volume"],
     autohide:true,
     autohide_delay:1000
 
 }
-app_data_path = process.env.HOME
-app_data_path += "/.linux-system-hud/"
-let realtime = false
+// check for linux system commands
+let lcmds = {
+    xrandr:null, amixer:null, zip:null, unzip:null, tar:null
+}
+lcmds.xrandr = execSync("which xrandr").toString().trim()
+lcmds.amixer = execSync("which amixer").toString().trim()
+lcmds.zip = execSync("which zip").toString().trim()
+lcmds.unzip = execSync("which unzip").toString().trim()
+lcmds.tar = execSync("which tar").toString().trim()
 
-if ( !fs.existsSync( app_data_path ) ) {
-    console.log("CREATE: user data folder", app_data_path);
-    fs.mkdirSync( app_data_path + "huds" , { recursive: true } )
-    fs.mkdirSync( app_data_path + "hud_defs" , { recursive: true } )
+console.log(lcmds);
+//-----------------------USER DATA-------------------------------------------
+
+// setup base data paths
+
+
+let appdata = {}
+appdata.base = path.join( process.env.HOME , ".linux-system-hud" )
+appdata.huds = path.join( appdata.base, "huds" )
+appdata.hdef = path.join( appdata.base, "hdef" )
+appdata.shared = path.join( appdata.huds, "lshub-shared" )
+
+console.log("appdata",appdata);
+
+
+if ( !fs.existsSync( appdata.base ) ) {
+    console.log("CREATE: user data folders", appdata.base);
+    for (let p in appdata) {
+        fs.mkdirSync( appdata[p] , { recursive: true } )
+    }
 
     saveConfig()
+    resetCustomShared()
 
 } else {
-    if (fs.existsSync(app_data_path + "config.json")) {
-        console.log('LOAD: config.json.');
-        config = JSON.parse( fs.readFileSync(app_data_path + "config.json",'utf8') )
+    if ( fs.existsSync( path.join( appdata.base , "config.json" ) ) ) {
+        console.log('LSH: loading main config.');
+        config = JSON.parse( fs.readFileSync( path.join( appdata.base , "config.json" ) , 'utf8' ) )
     } else {
         saveConfig()
     }
@@ -50,10 +74,31 @@ if ( !fs.existsSync( app_data_path ) ) {
 }
 
 function saveConfig(){
-    fs.writeFileSync(app_data_path + "config.json", JSON.stringify(config,null,4) ) //
+    fs.writeFileSync(appdata.base + "config.json", JSON.stringify(config,null,4) ) //
 }
 
+function resetCustomShared() {
+    let app_share_path = path.join(__dirname,"node_modules","lshud-shared")
+    let folders = ["assets","js","lib"]
+    let files = [
+        ["move.png","share.css"],
+        ["share.js"],
+        []
+    ]
+    folders.forEach((fol, i) => {
+        fs.mkdirSync( path.join(appdata.shared, fol ) , { recursive: true } )
+        let src = path.join( app_share_path , fol )
+        let dest = path.join( appdata.shared , fol )
+        files[i].forEach((file, ii) => {
+            fs.copyFileSync( path.join(src,file), path.join(dest,file) )
+        });
 
+    });
+
+
+}
+
+//-------------------------COMMAND ARGS---------------------------------------
 function checkArgs(cmdargs = args) {
     console.log(cmdargs);
     let optionSet = false
@@ -156,44 +201,34 @@ app.whenReady().then(() => {
 
 
 
-//----------------------HUD creation------------------------------------
-
-let hud_defs = {}
-
+//----------------------LOAD HUD DATA------------------------------------
+function resetHudDef(hudid){
+    let src = appdata.huds
+    let dest = path.join( appdata.hdef, hudid + ".json")
+    if (config.default_huds.includes(hudid)){
+        src = path.join(__dirname, 'node_modules')
+    }
+    src = path.join(src,hudid,"config.json")
+    fs.copyFileSync(src,dest )
+}
 
 function loadHudData() {
     console.log("LSH: Begin loading hud definitions ");
     let filelist, hpath
-    let defpath = path.join(app_data_path, "hud_defs")
+    // default
     hpath = path.join(__dirname, 'node_modules')
     config.default_huds.forEach((hudid, i) => {
-        if (!fs.existsSync( path.join(defpath, hudid+".json") )){
-            fs.copyFileSync( path.join(hpath, "/lshud-" + hudid + "/config.json") , path.join(defpath, hudid+".json") )
+        if (!fs.existsSync( path.join(appdata.hdef, hudid+".json") )){
+            resetHudDef(hudid)
         }
-        hud_defs[hudid] = JSON.parse( fs.readFileSync( path.join(defpath, hudid+".json") , 'utf8' ) )
-        hud_defs[hudid].path = hpath + "/lshud-" + hudid
+        HDEF[hudid] = JSON.parse( fs.readFileSync( path.join(appdata.hdef, hudid+".json") , 'utf8' ) )
+        HDEF[hudid].path = path.join(hpath, hudid)
     });
 
-    // default
-    /*
-    hpath = path.join(__dirname, 'huds')
-    filelist =  fs.readdirSync( hpath , { withFileTypes:true })
 
-    for (let i = 0; i < filelist.length; i++) {
-        //console.log(filelist[i]);
-        if (filelist[i].isDirectory()) {
-            let hudid = filelist[i].name
-            if ( fs.existsSync( hpath + "/" + hudid + "/config.json" )  ){
-                console.log("found a hud data folder");
 
-                hud_defs[hudid] = JSON.parse( fs.readFileSync(hpath + "/" + hudid + "/config.json",'utf8') )
-                hud_defs[hudid].path = hpath + "/" + hudid
-            }
-        }
-    }
-    */
     // plugins
-    hpath = app_data_path + "huds"
+    hpath = appdata.huds
     filelist =  fs.readdirSync( hpath , { withFileTypes:true })
     //console.log("datastore dir",filelist);
 
@@ -201,22 +236,27 @@ function loadHudData() {
         //console.log(filelist[i]);
         if (filelist[i].isDirectory()) {
             let hudid = filelist[i].name
-            if ( fs.existsSync( hpath + "/" + hudid + "/config.json" )  ){
+            if ( fs.existsSync( path.join( hpath , hudid , "config.json" ) )  ){
                 console.log("found a hud data folder");
+                if (!fs.existsSync( path.join(appdata.hdef, hudid+".json") )){
+                    resetHudDef(hudid)
+                }
+                HDEF[hudid] = JSON.parse( fs.readFileSync( path.join(appdata.hdef, hudid+".json") , 'utf8' ) )
+                HDEF[hudid].path = path.join(hpath, hudid)
 
-                hud_defs[hudid] = JSON.parse( fs.readFileSync(hpath + "/" + hudid + "/config.json",'utf8') )
-                hud_defs[hudid].path = hpath + "/" + hudid
             }
         }
     }
 
     console.log("LS: Finished loading hud definitions");
     // create all active huds
-    for (let id in hud_defs){
-        if (hud_defs[id].active === true){ createHud(id) }
+    for (let id in HDEF){
+        if (HDEF[id].active === true){ createHud(id) }
     }
 }
 
+
+//--------------------------HUD CREATE------------------------------------
 
 //*** test support for background_only huds
 function createHud(hudid) {
@@ -227,7 +267,7 @@ function createHud(hudid) {
         return;
     }
     //reference this huds definition
-    let hdef = hud_defs[hudid]
+    let hdef = HDEF[hudid]
     // check weather to show this hud
     let show_win = true
     let paint_win = true
@@ -260,7 +300,7 @@ function createHud(hudid) {
     // hide the default electron menu
     HUD[hudid].win.setMenuBarVisibility(false)
     // and load the html of the hud.
-    HUD[hudid].win.loadFile( path.join(hdef.path ,`${hudid}.html`) )
+    HUD[hudid].win.loadFile( path.join(hdef.path ,`index.html`) )
     // check for and load browser views
     if (hdef.url !== null){
         console.log("create browserview");
@@ -296,7 +336,7 @@ function createHud(hudid) {
         console.log(`HUD ${hudid} did-finish-load`);
         HUD[hudid].ready = true
         // send the hud it's config definition
-        HUD[hudid].win.webContents.send("from_mainProcess",{type:"config_definition", data:hud_defs[hudid]})
+        HUD[hudid].win.webContents.send("from_mainProcess",{type:"config_definition", data:HDEF[hudid]})
         hudSendPositionSize(hudid)
         if (hdef.hud_type === "normal" ){ checkHudsReady(hudid) }
 
@@ -359,7 +399,7 @@ function checkHudsReady(hud) {
 
     let all_ready = true
     for (let id in HUD){
-        if (hud_defs[id].active === true && !HUD[id].ready) { all_ready = false }
+        if (HDEF[id].active === true && !HUD[id].ready) { all_ready = false }
     }
     if (all_ready === true && realtime === false  ) {
         startRealTimeData()
@@ -374,7 +414,7 @@ function destroyHud(hudid){
     /*
     // check for and close huds that depend on this one
     for (let id in HUD){
-        if ( hud_defs[id].depends.includes(hudid)) {
+        if ( HDEF[id].depends.includes(hudid)) {
             destroyHud(id)
 
         }
@@ -393,11 +433,11 @@ ipcMain.on("hud_window", (event, data) => {
     if (data.type === "window_button") {
 
         if (data.button === "win_pin_toggle"){
-            if (hud_defs[hudid].is_pinned === true)
+            if (HDEF[hudid].is_pinned === true)
             { unsetPinHud(hudid) } else { setPinHud(hudid) }
         }
         if (data.button === "win_hidden_toggle"){
-            if (hud_defs[hudid].is_hidden === true)
+            if (HDEF[hudid].is_hidden === true)
             { unsetHiddenHud(hudid) } else { setHiddenHud(hudid) }
         }
         if (data.button === "win_close"){
@@ -409,7 +449,7 @@ ipcMain.on("hud_window", (event, data) => {
 
     }
     if (data.type === "request_hud_defs") {
-        sendToHud(hudid,{ type:"request_hud_defs" , data:hud_defs })
+        sendToHud(hudid,{ type:"request_hud_defs" , data:HDEF })
     }
     if (data.type === "request_hud_list") {
         let hudlist = {}
@@ -436,7 +476,7 @@ ipcMain.on("hud_window", (event, data) => {
 ipcMain.on("data_update", (event, data) => {
     console.log("data_update", data);
     for (let id in HUD){
-        if (hud_defs[id].subscribe.includes(data.type) || hud_defs[id].subscribe.includes("all")){
+        if (HDEF[id].subscribe.includes(data.type) || HDEF[id].subscribe.includes("all")){
             HUD[id].win.webContents.send("data_update", data )
         }
     }
@@ -470,21 +510,21 @@ function hudSendPositionSize(id){
 function showNormalHuds(){
     //*** maybe check here for any active, non-hidden, normal huds that have been
     //    destroyed and recreate them
-    for (let id in hud_defs){
-        if (  hud_defs[id].hud_type === "normal" && hud_defs[id].active === true){
+    for (let id in HDEF){
+        if (  HDEF[id].hud_type === "normal" && HDEF[id].active === true){
             if (!HUD[id]) { createHud(id)  }
         }
     }
     for (let id in HUD){
-        if ( hud_defs[id].hud_type === "normal" &&  hud_defs[id].is_hidden === false ) {
+        if ( HDEF[id].hud_type === "normal" &&  HDEF[id].is_hidden === false ) {
             HUD[id].win.show()
         }
     }
 }
 function hideNormalHuds(){
     for (let id in HUD){
-        if (  hud_defs[id].hud_type === "normal" &&  hud_defs[id].is_hidden === false ) {
-            if (hud_defs[id].is_pinned === false) {
+        if (  HDEF[id].hud_type === "normal" &&  HDEF[id].is_hidden === false ) {
+            if (HDEF[id].is_pinned === false) {
                 HUD[id].win.hide()
             }
         }
@@ -494,7 +534,7 @@ function hideNormalHuds(){
 // hide and show individual huds overriding pinned/hidden
 function showHud(id) {
     // check if the hud exist
-    if (!hud_defs[id] || hud_defs[id].active === false ) {
+    if (!HDEF[id] || HDEF[id].active === false ) {
         console.log(`HUD ${id} is not defined or Inactive`);
         return;
     }
@@ -502,10 +542,10 @@ function showHud(id) {
         createHud(id)
         return;
     }
-    if ( hud_defs[id].hud_type === "normal" || hud_defs[id].hud_type === "freestyle"  ) {
+    if ( HDEF[id].hud_type === "normal" || HDEF[id].hud_type === "freestyle"  ) {
         if ( HUD[id].win ) { HUD[id].win.show() }
     }
-    if (hud_defs[id].is_hidden === true) {
+    if (HDEF[id].is_hidden === true) {
         unsetHiddenHud(id)
     }
 }
@@ -514,26 +554,26 @@ function hideHud(id) {
     if (HUD[id] && HUD[id].win) {
         HUD[id].win.hide()
     }
-    if (hud_defs[id].is_pinned === true) {
+    if (HDEF[id].is_pinned === true) {
         unsetPinHud(id)
     }
 }
 
 //*** need to add config saves in these
 function setPinHud(id) {
-    hud_defs[id].is_pinned = true
+    HDEF[id].is_pinned = true
 }
 
 function unsetPinHud(id) {
-    hud_defs[id].is_pinned = false
+    HDEF[id].is_pinned = false
 }
 
 function setHiddenHud(id) {
-    hud_defs[id].is_hidden = true
+    HDEF[id].is_hidden = true
 }
 
 function unsetHiddenHud(id) {
-    hud_defs[id].is_hidden = false
+    HDEF[id].is_hidden = false
 }
 
 
