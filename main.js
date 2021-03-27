@@ -26,7 +26,7 @@ let config = {
         focus_switch:"Super+Tab",
         quit:"Super+q"
     },
-    default_huds:["lshud-volume"],
+    default_huds:["lshud-volume","lshud-settings"],
     autohide:true,
     autohide_delay:1000
 
@@ -270,9 +270,40 @@ function loadHudData() {
 
 //--------------------------HUD CREATE------------------------------------
 
+function createBrowserView(hudid,bv, setin = false){
+    // check if we already have it
+    if (HUD[hudid].views[bv.name] && setin === true ) {
+        console.log("setting existing browser view");
+        HUD[hudid].win.setBrowserView(HUD[hudid].views[bv.name])
+
+    }
+    HUD[hudid].views[bv.name] = new BrowserView()
+    if (setin === true) {
+        console.log("setin view");
+        HUD[hudid].win.setBrowserView(HUD[hudid].views[bv.name])
+    }
+    HUD[hudid].views[bv.name].setBounds(bv.bounds)
+    HUD[hudid].views[bv.name].setAutoResize(bv.auto_resize)
+    HUD[hudid].views[bv.name].webContents.loadURL(bv.url)
+    HUD[hudid].views[bv.name].webContents.on("did-finish-load",() =>{
+        console.log(`LSH:HUD BVIEW ${hudid} - ${bv.name} did-finish-load`);
+
+    })
+    HUD[hudid].views[bv.name].webContents.on("context-menu",(e) =>{
+        console.log(`LSH:HUDVIEW ${hudid} context-menu`,e);
+
+    })
+    if (bv.dev_tools){
+        HUD[hudid].views[bv.name].webContents.openDevTools({mode:"detach"})
+    }
+
+
+}
+
+
 //*** test support for background_only huds
 function createHud(hudid) {
-    console.log("LSH createHud() ", hudid);
+    console.log("LSH: createHud() ", hudid);
     // Create the browser window.
     if ( HUD[hudid]) {
         console.log(`LSH: hud ${hudid} already exists`);
@@ -297,42 +328,39 @@ function createHud(hudid) {
         y:hdef.y,
         width: hdef.width,
         height: hdef.height,
-        //transparent:true,
+        transparent:hdef.transparent,
         frame:hdef.frame,
         show:show_win,
         paintWhenInitiallyHidden:paint_win, // maybe don't need this
-        //resizable:false,
+        resizable:hdef.resizable,
         webPreferences: {
             contextIsolation: false,
             preload: path.join(hdef.path , 'preload.js')
 
         },
-        //icon: path.join(__dirname, 'huds/assets/icons/logo.png')
+        icon: path.join(hdef.path, 'assets/icon.png')
     })
     // hide the default electron menu
     HUD[hudid].win.setMenuBarVisibility(false)
-    // and load the html of the hud.
-    HUD[hudid].win.loadFile( path.join(hdef.path ,`index.html`) )
+    // load the html of the hud or specified url.
+    if (hdef.load_url === null){
+        HUD[hudid].win.loadFile( path.join(hdef.path ,`index.html`) )
+    } else {
+        HUD[hudid].win.loadURL( hdef.load_url )
+    }
+
     HUD[hudid].views = {}
     // check for and load browser views
-    if (hdef.url !== null){
-        console.log("create first browserview");
-        HUD[hudid].view = new BrowserView()
-        HUD[hudid].view.setBounds(hdef.url_bounds)
-        HUD[hudid].view.setAutoResize(hdef.url_auto_resize)
-        HUD[hudid].view.webContents.loadURL(hdef.url)
-        HUD[hudid].view.webContents.on("did-finish-load",() =>{
-            console.log(`LSH:HUDVIEW ${hudid} did-finish-load`);
-
-        })
-        HUD[hudid].view.webContents.on("context-menu",(e) =>{
-            console.log(`LSH:HUDVIEW ${hudid} context-menu`,e);
-
-        })
-        //HUD[hudid].view.webContents.openDevTools({mode:"detach"})
-        HUD[hudid].win.setBrowserView(HUD[hudid].view)
-
+    if (hdef.browser_views.length > 0){
+        hdef.browser_views.forEach((bv, i) => {
+            let setin = false
+            if (i = 0 && hdef.load_browser_view === true ) { setin = true }
+            if (bv.auto_load === true || setin === true){
+                createBrowserView(hudid,bv, setin)
+            }
+        });
     }
+
     // Open the DevTools.
     if ( hdef.open_dev_tools === true ) {
         HUD[hudid].win.webContents.openDevTools({mode:"detach"})
@@ -475,10 +503,33 @@ ipcMain.on("hud_window", (event, data) => {
         sendToHud(hudid,{ type:"request_hud_list" , data:hudlist })
     }
     if (data.type === "window_move_resize") {
-        console.log("window_move_resize", data.data);
-        HUD[hudid].win.setBounds(data.data)
-    }
+        //console.log("window_move_resize", data.data);
+        if (data.data === null) {
+            hudSendPositionSize(hudid)
+        } else {
+            HUD[hudid].win.setBounds(data.data)
+        }
 
+    }
+    //request_browser_view
+    if (data.type === "request_browser_view") {
+        console.log("request_browser_view", data);
+        if (data.remove !== undefined){
+            HUD[hudid].win.setBrowserView(null)
+        }
+        if (data.destroy !== undefined){
+            console.log("destroying browser view");
+            delete HUD[hudid].views[data.destroy]
+            console.log(HUD[hudid].views);
+        }
+        if (data.viewid !== undefined) {
+            createBrowserView(hudid,HUD[hudid].views[data.viewid], true)
+
+        }
+        if (data.view !== undefined)  {
+            createBrowserView(hudid,data.view, true)
+        }
+    }
 
 
 })
