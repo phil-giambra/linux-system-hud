@@ -530,6 +530,10 @@ ipcMain.on("hud_window", (event, data) => {
             createBrowserView(hudid,data.view, true)
         }
     }
+    // settings changes
+    if (data.type === "setting_change"){
+        handleHudSettingChange(data)
+    }
 
 
 })
@@ -693,6 +697,11 @@ function getScreenSize(){
          screen_size = { w:parseInt(s[0][0]), h:parseInt(s[0][1]) }
          console.log("LSH computed screen size ", screen_size);
      })
+}
+
+
+function handleHudSettingChange(data) {
+    console.log("handleHudSettingChange", data);
 }
 
 
