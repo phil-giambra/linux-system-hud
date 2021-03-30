@@ -91,6 +91,11 @@ function saveConfig(){
     fs.writeFileSync(path.join(appdata.base , "config.json"), JSON.stringify(config,null,4) ) //
 }
 
+function saveHudConfig(hudid){
+    fs.writeFileSync(path.join(appdata.hdef , `${hudid}.json`), JSON.stringify(HDEF[hudid],null,4) ) //
+}
+
+
 function resetCustomShared() {
     let app_share_path = path.join(__dirname,"node_modules","lshud-shared")
     let folders = ["assets","js","lib"]
@@ -314,11 +319,13 @@ function createHud(hudid) {
     // check weather to show this hud
     let show_win = true
     let paint_win = true
+    let skip_taskbar = true
     if (hdef.hud_type === "normal" && hdef.is_hidden === true){ show_win = false }
     if (hdef.hud_type === "freestyle" && hdef.show_on_startup === false || hdef.hud_type === "background") {
         show_win = false
         //paint_win = false
     }
+    if (hdef.hud_type === "freestyle" ){ skip_taskbar = false  }
 
 
     HUD[hudid] = {}
@@ -331,6 +338,7 @@ function createHud(hudid) {
         transparent:hdef.transparent,
         frame:hdef.frame,
         show:show_win,
+        skipTaskbar:skip_taskbar,
         paintWhenInitiallyHidden:paint_win, // maybe don't need this
         resizable:hdef.resizable,
         webPreferences: {
@@ -342,6 +350,8 @@ function createHud(hudid) {
     })
     // hide the default electron menu
     HUD[hudid].win.setMenuBarVisibility(false)
+    // set skiptaskbar
+    HUD[hudid].win.setSkipTaskbar(skip_taskbar)
     // load the html of the hud or specified url.
     if (hdef.load_url === null){
         HUD[hudid].win.loadFile( path.join(hdef.path ,`index.html`) )
@@ -448,7 +458,7 @@ function checkHudsReady(hud) {
 }
 
 function destroyHud(hudid){
-    // close the hud and any other huds the depend on it
+    // close the hud
     if (!HUD[hudid]) { return;}
 
     delete HUD[hudid]
@@ -472,14 +482,26 @@ ipcMain.on("hud_window", (event, data) => {
     //console.log("hud_window",data);
     let hudid = data.hudid
     if (data.type === "window_button") {
+        if (data.button === "win_minimize"){
+            HUD[hudid].win.minimize()
+        }
+        if (data.button === "win_maximize"){
+            if (HUD[hudid].win.isMaximized()){
+                HUD[hudid].win.unmaximize()
+            } else {
+                HUD[hudid].win.maximize()
+            }
 
+        }
         if (data.button === "win_pin_toggle"){
-            if (HDEF[hudid].is_pinned === true)
-            { unsetPinHud(hudid) } else { setPinHud(hudid) }
+            handleHudSettingChange({ change:{
+                hudid:hudid, key:"is_pinned", value: !HDEF[hudid].is_pinned
+            } })
         }
         if (data.button === "win_hidden_toggle"){
-            if (HDEF[hudid].is_hidden === true)
-            { unsetHiddenHud(hudid) } else { setHiddenHud(hudid) }
+            handleHudSettingChange({ change:{
+                hudid:hudid, key:"is_hidden", value: !HDEF[hudid].is_hidden
+            } })
         }
         if (data.button === "win_close"){
             HUD[hudid].win.close()
@@ -528,6 +550,12 @@ ipcMain.on("hud_window", (event, data) => {
         }
         if (data.view !== undefined)  {
             createBrowserView(hudid,data.view, true)
+        }
+        if (data.reload !== undefined)  {
+            if (HUD[hudid].views[data.reload]){
+                HUD[hudid].views[data.reload].webContents.reload()
+            }
+
         }
     }
     // settings changes
@@ -613,37 +641,14 @@ function showHud(id) {
     if ( HDEF[id].hud_type === "normal" || HDEF[id].hud_type === "freestyle"  ) {
         if ( HUD[id].win ) { HUD[id].win.show() }
     }
-    if (HDEF[id].is_hidden === true) {
-        unsetHiddenHud(id)
-    }
+
 }
 
 function hideHud(id) {
     if (HUD[id] && HUD[id].win) {
         HUD[id].win.hide()
     }
-    if (HDEF[id].is_pinned === true) {
-        unsetPinHud(id)
-    }
 }
-
-//*** need to add config saves in these
-function setPinHud(id) {
-    HDEF[id].is_pinned = true
-}
-
-function unsetPinHud(id) {
-    HDEF[id].is_pinned = false
-}
-
-function setHiddenHud(id) {
-    HDEF[id].is_hidden = true
-}
-
-function unsetHiddenHud(id) {
-    HDEF[id].is_hidden = false
-}
-
 
 
 
@@ -700,8 +705,67 @@ function getScreenSize(){
 }
 
 
+
 function handleHudSettingChange(data) {
     console.log("handleHudSettingChange", data);
+    let hudid = data.change.hudid
+    let key = data.change.key
+    let value = data.change.value
+    if (!HDEF[hudid]) { return;}
+    // for app settings and redirect
+    if ( key.startsWith("app_") ) {
+        handleAppSettingChange(data)
+        return
+    }
+    if (key === "active") {
+        HDEF[hudid].active = value
+        if (value === false) {
+            // stop the hud if it is running
+            if( HUD[hudid] && HUD[hudid].win){
+                HUD[hudid].win.close()
+            }
+        } else {
+            // show or start the hud if it is not running
+            showHud(hudid)
+        }
+
+    }
+    if (key === "is_pinned"){
+        HDEF[hudid].is_pinned = value
+        if (value === true) {
+            if (HDEF[hudid].is_hidden === true) {HDEF[hudid].is_hidden = false}
+            showHud(hudid)
+        }
+        else if ( realtime === false ) { hideHud(hudid) }
+    }
+    if (key === "is_hidden"){
+        HDEF[hudid].is_hidden = value
+        if (value === true ) {
+            if (HDEF[hudid].is_pinned === true) {HDEF[hudid].is_pinned = false}
+            hideHud(hudid)
+        }
+        else if ( realtime === true ) { showHud(hudid) }
+    }
+
+    saveHudConfig(hudid)
+    sendToHud("lshud-settings",{type:"request_hud_defs", data:HDEF})
+
+}
+
+
+function handleAppSettingChange(data) {
+    console.log("handleAppSettingChange", data);
+    let hudid = data.change.hudid
+    let key = data.change.key
+    let key_chain = data.change.key_chain
+    let value = data.change.value
+    let place = HDEF[hudid].app
+    key_chain.forEach((item, i) => {
+        place = place[item]
+    });
+    place = value
+    sendToHud("lshud-settings",{type:"app_setting_change", data:data.change, app:HDEF[hudid].app })
+    sendToHud(hudid,{type:"app_setting_change", data:data.change, app:HDEF[hudid].app })
 }
 
 
