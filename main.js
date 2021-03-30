@@ -88,7 +88,7 @@ if ( !fs.existsSync( appdata.base ) ) {
 }
 
 function saveConfig(){
-    fs.writeFileSync(appdata.base + "config.json", JSON.stringify(config,null,4) ) //
+    fs.writeFileSync(path.join(appdata.base , "config.json"), JSON.stringify(config,null,4) ) //
 }
 
 function resetCustomShared() {
