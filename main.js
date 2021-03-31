@@ -221,13 +221,19 @@ app.whenReady().then(() => {
 
 
 //----------------------LOAD HUD DATA------------------------------------
+//
 function resetHudDef(hudid){
-    let src = appdata.huds
+    let src = path.join(appdata.huds, hudid, "config.json")
     let dest = path.join( appdata.hdef, hudid + ".json")
-    if (config.default_huds.includes(hudid)){
-        src = path.join(__dirname, 'node_modules')
+    // if hud config is not in appdata.huds then check node_modules
+    if (!fs.existsSync(src)){
+        src = path.join(__dirname, 'node_modules', hudid, "config.json")
     }
-    src = path.join(src,hudid,"config.json")
+    if (!fs.existsSync(src)){
+        console.log(`LSH:resetHudDef(${hudid}) ERROR: file not found`);
+        return
+    }
+
     fs.copyFileSync(src,dest )
 }
 
@@ -306,7 +312,7 @@ function createBrowserView(hudid,bv, setin = false){
 }
 
 
-//*** test support for background_only huds
+//
 function createHud(hudid) {
     console.log("LSH: createHud() ", hudid);
     // Create the browser window.
