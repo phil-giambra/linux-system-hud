@@ -24,7 +24,7 @@ It comes with a few built-in huds. You can use them and the lshud-template repos
 
 
 #### Configuration
- When first run lshud will create folder `~/.linux-system-hud` containing the following
+ When first run lshud it will the create folder `~/.linux-system-hud` containing the following
 
 ```
 ├── config.json         (main program config)

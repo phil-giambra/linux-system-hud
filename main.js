@@ -19,7 +19,7 @@ let focused_hud = null
 let xonly = false
 let realtime = false
 let screen_size
-let data_loop = null
+
 let config = {
     keybinds:{
         hide_show:"Super+Space",
@@ -57,8 +57,6 @@ console.log(lcmds);
 //-----------------------USER DATA-------------------------------------------
 
 // setup base data paths
-
-
 let appdata = {}
 appdata.base = path.join( process.env.HOME , ".linux-system-hud" )
 appdata.huds = path.join( appdata.base, "huds" )
@@ -67,6 +65,7 @@ appdata.shared = path.join( appdata.huds, "lshub-shared" )
 
 console.log("appdata",appdata);
 
+// load or create lshud config
 
 if ( !fs.existsSync( appdata.base ) ) {
     console.log("LSH: create user data folders", appdata.base);
@@ -86,16 +85,19 @@ if ( !fs.existsSync( appdata.base ) ) {
     }
 
 }
-
+// save the config object
 function saveConfig(){
     fs.writeFileSync(path.join(appdata.base , "config.json"), JSON.stringify(config,null,4) ) //
 }
 
+// save an individual huds definition
 function saveHudConfig(hudid){
     fs.writeFileSync(path.join(appdata.hdef , `${hudid}.json`), JSON.stringify(HDEF[hudid],null,4) ) //
 }
 
-
+// Copy the lshud-shared module to ~/.linux-system-hud/huds/ so any huds
+// in that folder can use it. This will overwrite user changes made to the
+// default files
 function resetCustomShared() {
     let app_share_path = path.join(__dirname,"node_modules","lshud-shared")
     let folders = ["assets","js","lib"]
@@ -147,13 +149,15 @@ function showHelp() {
     app.quit()
 }
 
+// not used at this point everything is handled in app.whenReady
 function handleAnotherInstance(event, commandLine, workingDirectory) {
     console.log("handleAnotherInstance:", commandLine);
     console.log("handleAnotherInstance:", workingDirectory);
     // nothing to do here
 }
 
-
+// check anything that needs to be check before quitting
+// currently nothing
 function checkOkToQuit() {
     app.quit()
 }
@@ -161,11 +165,11 @@ function checkOkToQuit() {
 
 app.on('window-all-closed', function () { checkOkToQuit() })
 
-
 app.on('will-quit',function(event) { console.log("LSH: going to quit"); })
 
 app.whenReady().then(() => {
-
+    // if another instance is already running display help if requested
+    // or just let the user know
     if (!gotTheLock) {
         let lastarg = args.pop()
         if (lastarg === "--help") {
@@ -182,10 +186,9 @@ app.whenReady().then(() => {
     } else {
 
         app.on('second-instance', (event, commandLine, workingDirectory) => {
-
             handleAnotherInstance(event, commandLine, workingDirectory)
         })
-
+        // setup global keybinds
         KEYBIND.hide_show = globalShortcut.register(config.keybinds.hide_show, () => {
             //console.log('hide_show is pressed')
             if (realtime === true) {
@@ -207,7 +210,7 @@ app.whenReady().then(() => {
             for (let id in HUD){ x++; HUD[id].win.close() }
             if (x === 0) { checkOkToQuit() }
         })
-
+        // check for any command line arguments
         checkArgs()
 
     }
@@ -216,12 +219,9 @@ app.whenReady().then(() => {
 })
 
 
-
-
-
-
 //----------------------LOAD HUD DATA------------------------------------
-//
+// this will copy a huds config.json to ~/.linux-system-hud/hdef/
+// reseting it to default
 function resetHudDef(hudid){
     let src = path.join(appdata.huds, hudid, "config.json")
     let dest = path.join( appdata.hdef, hudid + ".json")
@@ -237,10 +237,11 @@ function resetHudDef(hudid){
     fs.copyFileSync(src,dest )
 }
 
+// looks for huds and loads their definitions then creates any that are active
 function loadHudData() {
     console.log("LSH: Begin loading hud definitions ");
     let filelist, hpath
-    // default
+    // Load all the default (built-in) huds
     hpath = path.join(__dirname, 'node_modules')
     config.default_huds.forEach((hudid, i) => {
         if (!fs.existsSync( path.join(appdata.hdef, hudid+".json") )){
@@ -250,9 +251,7 @@ function loadHudData() {
         HDEF[hudid].path = path.join(hpath, hudid)
     });
 
-
-
-    // plugins
+    // search ~/.linux-system-hud/huds/ for any other huds or overrides of the defaults
     hpath = appdata.huds
     filelist =  fs.readdirSync( hpath , { withFileTypes:true })
     for (let i = 0; i < filelist.length; i++) {
@@ -279,8 +278,9 @@ function loadHudData() {
 }
 
 
-//--------------------------HUD CREATE------------------------------------
+//--------------------------HUD CREATION------------------------------------
 
+// used to load and optionally set a browserView for a hud
 function createBrowserView(hudid,bv, setin = false){
     // check if we already have it
     if (HUD[hudid].views[bv.name] && setin === true ) {
@@ -312,7 +312,7 @@ function createBrowserView(hudid,bv, setin = false){
 }
 
 
-//
+// create a hud according to it's definition in HDEF and setup listeners
 function createHud(hudid) {
     console.log("LSH: createHud() ", hudid);
     // Create the browser window.
@@ -433,6 +433,7 @@ function createHud(hudid) {
 
 }
 
+
 // as it stands if any hud regardless of hud_type has focus
 // then autohide will not happen
 //*** maybe want to change this to check only normal huds here, would also
@@ -463,6 +464,7 @@ function checkHudsReady(hud) {
     }
 }
 
+// remove a huds object after it's window has closed
 function destroyHud(hudid){
     // close the hud
     if (!HUD[hudid]) { return;}
@@ -480,10 +482,16 @@ function destroyHud(hudid){
 }
 
 //-----------------------------HUD messages to MAIN-----------------------------
+/*
+ there are two channels of communication ("hud_window","data_update") betweens
+ huds and the main process
 
+ hud_window:  these are common actions/requests between the main process
+              and the hud windows
+data_update: messages on this channels come from huds and are passed on to any
+             other huds who are subscribed to them.
+*/
 
-
-// these are common actions/requests for the hud windows
 ipcMain.on("hud_window", (event, data) => {
     //console.log("hud_window",data);
     let hudid = data.hudid
@@ -572,9 +580,7 @@ ipcMain.on("hud_window", (event, data) => {
 
 })
 
-// all huds can send their data out to be used by other huds
-// this channel recives the output from huds and then sends it
-// to any huds that are subscribed
+
 ipcMain.on("data_update", (event, data) => {
     //console.log("data_update", data);
     for (let id in HUD){
@@ -586,7 +592,6 @@ ipcMain.on("data_update", (event, data) => {
 
 
 //-----------------------------MAIN messages to HUD-----------------------------
-
 
 
 function sendToAllHuds(data){
@@ -633,7 +638,7 @@ function hideNormalHuds(){
     }
 }
 
-// hide and show individual huds overriding pinned/hidden
+// hide and show individual huds
 function showHud(id) {
     // check if the hud exist
     if (!HDEF[id] || HDEF[id].active === false ) {
@@ -659,18 +664,13 @@ function hideHud(id) {
 
 
 
+// the idea here is that when a normal hud is shown it could can go into a more realtime
+// state (update more often) and then when its hidden to go into a more relaxed
+// state (update less often or not at all)
 function startRealTimeData() {
     console.log("LSH: realtime started");
     realtime = true
-
-    //actl.getVolume()
     sendToAllHuds({ type:"start_realtime_data" })
-    if (data_loop === null){
-        data_loop = setInterval(function(){
-            //do somthing
-        },1000)
-    }
-
     showNormalHuds()
 }
 
@@ -678,16 +678,14 @@ function stopRealTimeData() {
     console.log("LSH: realtime ended");
     realtime = false
     sendToAllHuds({ type:"stop_realtime_data" })
-    if (data_loop !== null) {
-        clearInterval(data_loop)
-        data_loop = null
-    }
-
     hideNormalHuds()
 }
 
 
-
+// puts the users screen size in screen_size
+//*** screen_size is meant to be used to setup inital placement of huds based on
+// the users screen size but is not implemented yet.
+//*** maybe move this to lib/utility.js
 function getScreenSize(){
     if (lcmds.xrandr === null) {
         screen_size = { w: 1920, h: 1080 }
@@ -711,7 +709,7 @@ function getScreenSize(){
 }
 
 
-
+// used to make changes to a huds definition (except the app objects)
 function handleHudSettingChange(data) {
     console.log("handleHudSettingChange", data);
     let hudid = data.change.hudid
@@ -758,7 +756,7 @@ function handleHudSettingChange(data) {
 
 }
 
-
+// used to make changes to the app object of a huds definition
 function handleAppSettingChange(data) {
     console.log("handleAppSettingChange", data);
     let hudid = data.change.hudid
