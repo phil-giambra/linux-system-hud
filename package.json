@@ -17,11 +17,11 @@
     "utility"
   ],
   "bin": {
-    "lshud": "./lshud_cli.js"
+    "lshud": "./lshud"
   },
   "author": "Phil Giambra",
   "license": "MIT",
   "devDependencies": {
-    
+
   }
 }

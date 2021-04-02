@@ -47,13 +47,8 @@ catch (e) {lcmds.unzip = null }
 try { lcmds.tar = execSync("which tar").toString().trim() }
 catch (e) {lcmds.tar = null }
 
-
-
-
-
-
-
 console.log(lcmds);
+
 //-----------------------USER DATA-------------------------------------------
 
 // setup base data paths
@@ -132,6 +127,13 @@ function checkArgs(cmdargs = args) {
         if (item === "--xonly" ) {
             xonly = true
         }
+        if (item === "-t"){
+            console.log("LSH: Transparent windows enabled");
+            app.commandLine.appendSwitch('enable-transparent-visuals')
+            app.commandLine.appendSwitch('disable-gpu')
+
+        }
+
 
     });
 
@@ -322,17 +324,25 @@ function createHud(hudid) {
     }
     //reference this huds definition
     let hdef = HDEF[hudid]
-    // check weather to show this hud
+    // setup values to check
     let show_win = true
     let paint_win = true
     let skip_taskbar = true
+    let transparent_win = false
+    let resizable_win = hdef.resizable
+    let framed_win = hdef.frame
     if (hdef.hud_type === "normal" && hdef.is_hidden === true){ show_win = false }
     if (hdef.hud_type === "freestyle" && hdef.show_on_startup === false || hdef.hud_type === "background") {
         show_win = false
         //paint_win = false
     }
     if (hdef.hud_type === "freestyle" ){ skip_taskbar = false  }
-
+    // setup for transparent window if enabled
+    if (hdef.transparent === true && args.includes("-t") ) {
+        transparent_win = true
+        resizable_win = false
+        framed_win = false
+    }
 
     HUD[hudid] = {}
     HUD[hudid].focus = false
@@ -341,12 +351,12 @@ function createHud(hudid) {
         y:hdef.y,
         width: hdef.width,
         height: hdef.height,
-        transparent:hdef.transparent,
-        frame:hdef.frame,
+        transparent:transparent_win,
+        frame:framed_win,
         show:show_win,
         skipTaskbar:skip_taskbar,
         paintWhenInitiallyHidden:paint_win, // maybe don't need this
-        resizable:hdef.resizable,
+        resizable:resizable_win,
         webPreferences: {
             contextIsolation: false,
             preload: path.join(hdef.path , 'preload.js')

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# startup script during development to run with command line options
+# as "npm start" does not seem to pass them along  
+
+args="$*"
+
+electron main.js $args
