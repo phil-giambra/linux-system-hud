@@ -32,6 +32,7 @@ let config = {
 
 }
 // check for linux system commands
+// *** switch to loop
 let lcmds = {
     xrandr:null, amixer:null, zip:null, unzip:null, tar:null
 }
