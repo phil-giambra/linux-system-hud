@@ -165,7 +165,7 @@ function checkOkToQuit() {
     app.quit()
 }
 
-
+app.allowRendererProcessReuse = true
 app.on('window-all-closed', function () { checkOkToQuit() })
 
 app.on('will-quit',function(event) { console.log("LSH: going to quit"); })
@@ -340,6 +340,7 @@ function createHud(hudid) {
     if (hdef.hud_type === "freestyle" ){ skip_taskbar = false  }
     // setup for transparent window if enabled
     if (hdef.transparent === true && args.includes("-t") ) {
+        console.log("LSH: Creating transparent window");
         transparent_win = true
         resizable_win = false
         framed_win = false
@@ -365,6 +366,8 @@ function createHud(hudid) {
         },
         icon: path.join(hdef.path, 'assets/icon.png')
     })
+    HUD[hudid].winid = HUD[hudid].win.getNativeWindowHandle().readUInt32LE()
+    console.log(`LSH: ${hudid} native window id: `,  HUD[hudid].winid);
     // hide the default electron menu
     HUD[hudid].win.setMenuBarVisibility(false)
     // set skiptaskbar
