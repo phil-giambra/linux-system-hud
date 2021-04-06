@@ -276,7 +276,12 @@ function loadHudData() {
     console.log("LSH: Finished loading hud definitions");
     // create all active huds
     for (let id in HDEF){
-        if (HDEF[id].active === true){ createHud(id) }
+        if (HDEF[id].active === true){
+            setTimeout(() => {
+                createHud(id);
+            }, 500);
+
+        }
     }
 }
 
